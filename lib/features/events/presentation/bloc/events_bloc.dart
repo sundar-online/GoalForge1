@@ -14,6 +14,7 @@ class EventsBloc extends Bloc<EventsEvent, EventsState> {
   })  : _eventsRepository = eventsRepository,
         super(EventsInitial()) {
     on<SubscribeToEvents>(_onSubscribeToEvents);
+    on<_EventsDataChanged>(_onEventsDataChanged);
     on<CreateEvent>(_onCreateEvent);
     on<UpdateEvent>(_onUpdateEvent);
     on<ToggleEventCompletion>(_onToggleEventCompletion);
@@ -21,16 +22,18 @@ class EventsBloc extends Bloc<EventsEvent, EventsState> {
     on<SelectEventDate>(_onSelectEventDate);
   }
 
-  Future<void> _onSubscribeToEvents(SubscribeToEvents event, Emitter<EventsState> emit) async {
+  void _onSubscribeToEvents(SubscribeToEvents event, Emitter<EventsState> emit) {
     emit(EventsLoading());
-    await _eventsSubscription?.cancel();
+    _eventsSubscription?.cancel();
 
-    _eventsSubscription = _eventsRepository.watchEvents().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToEvents());
-      }
+    _eventsSubscription = _eventsRepository.watchEvents().skip(1).listen((_) {
+      if (!isClosed) add(const _EventsDataChanged());
     });
 
+    _recalculateAndEmit(emit);
+  }
+
+  void _onEventsDataChanged(_EventsDataChanged event, Emitter<EventsState> emit) {
     _recalculateAndEmit(emit);
   }
 
@@ -107,4 +110,8 @@ class EventsBloc extends Bloc<EventsEvent, EventsState> {
     _eventsSubscription?.cancel();
     return super.close();
   }
+}
+
+class _EventsDataChanged extends EventsEvent {
+  const _EventsDataChanged();
 }

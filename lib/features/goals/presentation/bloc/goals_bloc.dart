@@ -14,6 +14,7 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
   })  : _goalsRepository = goalsRepository,
         super(GoalsInitial()) {
     on<SubscribeToGoals>(_onSubscribeToGoals);
+    on<_GoalsDataChanged>(_onGoalsDataChanged);
     on<CreateGoalEvent>(_onCreateGoal);
     on<UpdateGoalEvent>(_onUpdateGoal);
     on<DeleteGoalEvent>(_onDeleteGoal);
@@ -21,14 +22,16 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
     on<SwitchActiveTabEvent>(_onSwitchActiveTab);
   }
 
-  Future<void> _onSubscribeToGoals(SubscribeToGoals event, Emitter<GoalsState> emit) async {
+  void _onSubscribeToGoals(SubscribeToGoals event, Emitter<GoalsState> emit) {
     emit(GoalsLoading());
-    await _goalsSubscription?.cancel();
-    _goalsSubscription = _goalsRepository.watchGoals().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToGoals());
-      }
+    _goalsSubscription?.cancel();
+    _goalsSubscription = _goalsRepository.watchGoals().skip(1).listen((_) {
+      if (!isClosed) add(const _GoalsDataChanged());
     });
+    _recalculateAndEmit(emit);
+  }
+
+  void _onGoalsDataChanged(_GoalsDataChanged event, Emitter<GoalsState> emit) {
     _recalculateAndEmit(emit);
   }
 
@@ -117,4 +120,8 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
     _goalsSubscription?.cancel();
     return super.close();
   }
+}
+
+class _GoalsDataChanged extends GoalsEvent {
+  const _GoalsDataChanged();
 }

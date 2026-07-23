@@ -15,6 +15,7 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
   })  : _notesRepository = notesRepository,
         super(NotesInitial()) {
     on<SubscribeToNotes>(_onSubscribeToNotes);
+    on<_NotesDataChanged>(_onNotesDataChanged);
     on<CreateNoteEvent>(_onCreateNote);
     on<UpdateNoteEvent>(_onUpdateNote);
     on<DeleteNoteEvent>(_onDeleteNote);
@@ -24,23 +25,23 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
     on<FilterNotesEvent>(_onFilterNotes);
   }
 
-  Future<void> _onSubscribeToNotes(SubscribeToNotes event, Emitter<NotesState> emit) async {
+  void _onSubscribeToNotes(SubscribeToNotes event, Emitter<NotesState> emit) {
     emit(NotesLoading());
-    await _notesSubscription?.cancel();
-    await _thoughtsSubscription?.cancel();
+    _notesSubscription?.cancel();
+    _thoughtsSubscription?.cancel();
 
-    _notesSubscription = _notesRepository.watchNotes().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToNotes());
-      }
+    _notesSubscription = _notesRepository.watchNotes().skip(1).listen((_) {
+      if (!isClosed) add(const _NotesDataChanged());
     });
 
-    _thoughtsSubscription = _notesRepository.watchQuickThoughts().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToNotes());
-      }
+    _thoughtsSubscription = _notesRepository.watchQuickThoughts().skip(1).listen((_) {
+      if (!isClosed) add(const _NotesDataChanged());
     });
 
+    _recalculateAndEmit(emit);
+  }
+
+  void _onNotesDataChanged(_NotesDataChanged event, Emitter<NotesState> emit) {
     _recalculateAndEmit(emit);
   }
 
@@ -147,4 +148,8 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
     _thoughtsSubscription?.cancel();
     return super.close();
   }
+}
+
+class _NotesDataChanged extends NotesEvent {
+  const _NotesDataChanged();
 }

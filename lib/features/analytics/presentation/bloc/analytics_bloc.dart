@@ -34,32 +34,37 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
         _gamificationService = gamificationService,
         super(AnalyticsInitial()) {
     on<SubscribeToAnalytics>(_onSubscribeToAnalytics);
+    on<_AnalyticsDataChanged>(_onAnalyticsDataChanged);
     on<SelectTimeframeEvent>(_onSelectTimeframe);
   }
 
-  Future<void> _onSubscribeToAnalytics(SubscribeToAnalytics event, Emitter<AnalyticsState> emit) async {
+  void _onSubscribeToAnalytics(SubscribeToAnalytics event, Emitter<AnalyticsState> emit) {
     emit(AnalyticsLoading());
-    await _goalsSubscription?.cancel();
-    await _tasksSubscription?.cancel();
-    await _focusSubscription?.cancel();
-    await _xpSubscription?.cancel();
+    _goalsSubscription?.cancel();
+    _tasksSubscription?.cancel();
+    _focusSubscription?.cancel();
+    _xpSubscription?.cancel();
 
-    _goalsSubscription = _goalsRepository.watchGoals().listen((_) {
-      if (!isClosed) add(SubscribeToAnalytics());
+    _goalsSubscription = _goalsRepository.watchGoals().skip(1).listen((_) {
+      if (!isClosed) add(const _AnalyticsDataChanged());
     });
 
-    _tasksSubscription = _tasksRepository.watchTasks().listen((_) {
-      if (!isClosed) add(SubscribeToAnalytics());
+    _tasksSubscription = _tasksRepository.watchTasks().skip(1).listen((_) {
+      if (!isClosed) add(const _AnalyticsDataChanged());
     });
 
-    _focusSubscription = _focusRepository.watchFocusSessions().listen((_) {
-      if (!isClosed) add(SubscribeToAnalytics());
+    _focusSubscription = _focusRepository.watchFocusSessions().skip(1).listen((_) {
+      if (!isClosed) add(const _AnalyticsDataChanged());
     });
 
-    _xpSubscription = _gamificationRepository.watchXPProfile().listen((_) {
-      if (!isClosed) add(SubscribeToAnalytics());
+    _xpSubscription = _gamificationRepository.watchXPProfile().skip(1).listen((_) {
+      if (!isClosed) add(const _AnalyticsDataChanged());
     });
 
+    _recalculateAndEmit(emit);
+  }
+
+  void _onAnalyticsDataChanged(_AnalyticsDataChanged event, Emitter<AnalyticsState> emit) {
     _recalculateAndEmit(emit);
   }
 
@@ -147,4 +152,8 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     _xpSubscription?.cancel();
     return super.close();
   }
+}
+
+class _AnalyticsDataChanged extends AnalyticsEvent {
+  const _AnalyticsDataChanged();
 }

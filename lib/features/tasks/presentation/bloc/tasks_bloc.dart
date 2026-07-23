@@ -20,29 +20,30 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         _gamificationService = gamificationService,
         super(TasksInitial()) {
     on<SubscribeToTasks>(_onSubscribeToTasks);
+    on<_TasksDataChanged>(_onTasksDataChanged);
     on<CreateTaskEvent>(_onCreateTask);
     on<ToggleTaskCompletionEvent>(_onToggleTaskCompletion);
     on<DeleteTaskEvent>(_onDeleteTask);
     on<FilterTasksEvent>(_onFilterTasks);
   }
 
-  Future<void> _onSubscribeToTasks(SubscribeToTasks event, Emitter<TasksState> emit) async {
+  void _onSubscribeToTasks(SubscribeToTasks event, Emitter<TasksState> emit) {
     emit(TasksLoading());
-    await _tasksSubscription?.cancel();
-    await _logsSubscription?.cancel();
+    _tasksSubscription?.cancel();
+    _logsSubscription?.cancel();
 
-    _tasksSubscription = _tasksRepository.watchTasks().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToTasks());
-      }
+    _tasksSubscription = _tasksRepository.watchTasks().skip(1).listen((_) {
+      if (!isClosed) add(const _TasksDataChanged());
     });
 
-    _logsSubscription = _tasksRepository.watchTaskLogs().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToTasks());
-      }
+    _logsSubscription = _tasksRepository.watchTaskLogs().skip(1).listen((_) {
+      if (!isClosed) add(const _TasksDataChanged());
     });
 
+    _recalculateAndEmit(emit);
+  }
+
+  void _onTasksDataChanged(_TasksDataChanged event, Emitter<TasksState> emit) {
     _recalculateAndEmit(emit);
   }
 
@@ -124,4 +125,8 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     _logsSubscription?.cancel();
     return super.close();
   }
+}
+
+class _TasksDataChanged extends TasksEvent {
+  const _TasksDataChanged();
 }

@@ -21,6 +21,7 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
         _gamificationService = gamificationService,
         super(HabitsInitial()) {
     on<SubscribeToHabits>(_onSubscribeToHabits);
+    on<_HabitsDataChanged>(_onHabitsDataChanged);
     on<ToggleHabitCompletionEvent>(_onToggleHabitCompletion);
     on<UpdateHabitProgressEvent>(_onUpdateHabitProgress);
     on<CreateStandAloneHabitEvent>(_onCreateStandAloneHabit);
@@ -28,23 +29,23 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
     on<SearchHabitsEvent>(_onSearchHabits);
   }
 
-  Future<void> _onSubscribeToHabits(SubscribeToHabits event, Emitter<HabitsState> emit) async {
+  void _onSubscribeToHabits(SubscribeToHabits event, Emitter<HabitsState> emit) {
     emit(HabitsLoading());
-    await _habitsSubscription?.cancel();
-    await _goalsSubscription?.cancel();
+    _habitsSubscription?.cancel();
+    _goalsSubscription?.cancel();
 
-    _habitsSubscription = _goalsRepository.watchAllHabits().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToHabits());
-      }
+    _habitsSubscription = _goalsRepository.watchAllHabits().skip(1).listen((_) {
+      if (!isClosed) add(const _HabitsDataChanged());
     });
 
-    _goalsSubscription = _goalsRepository.watchGoals().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToHabits());
-      }
+    _goalsSubscription = _goalsRepository.watchGoals().skip(1).listen((_) {
+      if (!isClosed) add(const _HabitsDataChanged());
     });
 
+    _recalculateAndEmit(emit);
+  }
+
+  void _onHabitsDataChanged(_HabitsDataChanged event, Emitter<HabitsState> emit) {
     _recalculateAndEmit(emit);
   }
 
@@ -142,4 +143,8 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
     _goalsSubscription?.cancel();
     return super.close();
   }
+}
+
+class _HabitsDataChanged extends HabitsEvent {
+  const _HabitsDataChanged();
 }

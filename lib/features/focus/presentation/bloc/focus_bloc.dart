@@ -22,6 +22,7 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
         _gamificationService = gamificationService,
         super(FocusInitial()) {
     on<SubscribeToFocus>(_onSubscribeToFocus);
+    on<_FocusDataChanged>(_onFocusDataChanged);
     on<StartTimerEvent>(_onStartTimer);
     on<PauseTimerEvent>(_onPauseTimer);
     on<ResetTimerEvent>(_onResetTimer);
@@ -32,17 +33,19 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     on<ChangeVolumeEvent>(_onChangeVolume);
   }
 
-  Future<void> _onSubscribeToFocus(SubscribeToFocus event, Emitter<FocusState> emit) async {
+  void _onSubscribeToFocus(SubscribeToFocus event, Emitter<FocusState> emit) {
     emit(FocusLoading());
-    await _focusSubscription?.cancel();
+    _focusSubscription?.cancel();
 
-    _focusSubscription = _focusRepository.watchFocusSessions().listen((_) {
-      if (!isClosed) {
-        add(SubscribeToFocus());
-      }
+    _focusSubscription = _focusRepository.watchFocusSessions().skip(1).listen((_) {
+      if (!isClosed) add(const _FocusDataChanged());
     });
 
     _recalculateAndEmit(emit, durationMinutes: 60);
+  }
+
+  void _onFocusDataChanged(_FocusDataChanged event, Emitter<FocusState> emit) {
+    _recalculateAndEmit(emit);
   }
 
   void _recalculateAndEmit(
@@ -200,4 +203,8 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     _tickerTimer?.cancel();
     return super.close();
   }
+}
+
+class _FocusDataChanged extends FocusEvent {
+  const _FocusDataChanged();
 }
