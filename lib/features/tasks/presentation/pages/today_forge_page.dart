@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/domain/models/habit.dart';
+import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/domain/models/task.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_utils.dart';
@@ -55,13 +56,15 @@ class _TodayForgePageState extends State<TodayForgePage> {
                     _latestTasksState = tasksState;
                   }
 
+                  final isWide = !ResponsiveLayout.isMobile(context);
+
                   return Scaffold(
                     body: SafeArea(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
                         child: Center(
                           child: Container(
-                            constraints: const BoxConstraints(maxWidth: 800.0),
+                            constraints: BoxConstraints(maxWidth: isWide ? 1300.0 : 600.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

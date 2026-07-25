@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/domain/models/goal.dart';
+import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../bloc/analytics_bloc.dart';
@@ -39,13 +41,15 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           final goals = _latestState?.goalMasteryList ?? [];
           final badges = _latestState?.earnedBadges ?? [];
 
+          final isWide = !ResponsiveLayout.isMobile(context);
+
           return Scaffold(
             body: SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
                 child: Center(
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 800.0),
+                    constraints: BoxConstraints(maxWidth: isWide ? 1300.0 : 600.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -54,7 +58,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                           'Analytics & Mastery',
                           style: theme.textTheme.headlineLarge?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: AppColors.onBackground,
+                            color: theme.colorScheme.onBackground,
                             fontSize: 26.0,
                           ),
                         ),
@@ -62,7 +66,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                         Text(
                           'PERFORMANCE & GROWTH INSIGHTS',
                           style: theme.textTheme.labelLarge?.copyWith(
-                            color: AppColors.outline,
+                            color: theme.colorScheme.onSurfaceVariant,
                             letterSpacing: 1.2,
                             fontWeight: FontWeight.bold,
                             fontSize: 10.0,
@@ -269,7 +273,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             height: 120.0,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: weeklyXpData.entries.map((entry) {
                 final heightRatio = (entry.value / maxXp).clamp(0.08, 1.0);
                 return Column(

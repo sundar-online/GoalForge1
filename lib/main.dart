@@ -13,19 +13,38 @@ import 'features/main_navigation_page.dart';
 
 import 'core/services/firebase_service.dart';
 import 'core/services/local_database_service.dart';
+import 'core/utils/logger.dart';
+
+import 'core/theme/theme_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase and Local Hive database
-  await FirebaseService.init();
-  await LocalDatabaseService.init();
+  // Initialize Firebase Core
+  try {
+    await FirebaseService.init();
+  } catch (e, stack) {
+    AppLogger.e('Firebase Service initialization warning', e, stack);
+  }
+
+  // Initialize Local Database
+  try {
+    await LocalDatabaseService.init();
+  } catch (e, stack) {
+    AppLogger.e('Local Database Service initialization warning', e, stack);
+  }
 
   // Initialize dependency injection
-  await initDependencies();
+  try {
+    await initDependencies();
+  } catch (e, stack) {
+    AppLogger.e('Dependency Injection initialization warning', e, stack);
+  }
 
   // Register LifecycleWatcher observer
-  WidgetsBinding.instance.addObserver(sl<LifecycleWatcher>());
+  try {
+    WidgetsBinding.instance.addObserver(sl<LifecycleWatcher>());
+  } catch (_) {}
 
   runApp(const GoalForgeApp());
 }
@@ -35,15 +54,24 @@ class GoalForgeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AuthBloc>(
-      create: (_) => sl<AuthBloc>()..add(AuthCheckRequested()),
-      child: MaterialApp(
-        title: 'GoalForge',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        navigatorKey: AppRouter.navigatorKey,
-        onGenerateRoute: AppRouter.generateRoute,
-        home: const AuthGate(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<ThemeCubit>(create: (_) => sl<ThemeCubit>()),
+        BlocProvider<AuthBloc>(create: (_) => sl<AuthBloc>()..add(AuthCheckRequested())),
+      ],
+      child: BlocBuilder<ThemeCubit, ThemeMode>(
+        builder: (context, themeMode) {
+          return MaterialApp(
+            title: 'GoalForge',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeMode,
+            navigatorKey: AppRouter.navigatorKey,
+            onGenerateRoute: AppRouter.generateRoute,
+            home: const AuthGate(),
+          );
+        },
       ),
     );
   }
@@ -56,10 +84,8 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        if (state is Authenticated) {
+        if (state is Authenticated || state is Unauthenticated || state is AuthError) {
           return const MainNavigationPage();
-        } else if (state is Unauthenticated || state is AuthError) {
-          return const AuthPage();
         }
         
         // Show brand loading splash screen for AuthInitial & AuthLoading

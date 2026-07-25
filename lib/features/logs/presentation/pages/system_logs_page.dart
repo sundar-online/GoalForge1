@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/domain/models/note.dart';
+import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/domain/models/quick_thought.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/uuid_generator.dart';
@@ -38,6 +39,8 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
 
           final totalRecords = _latestState?.totalStoredCount ?? 0;
 
+          final isWide = !ResponsiveLayout.isMobile(context);
+
           return Scaffold(
             floatingActionButton: FloatingActionButton(
               onPressed: () => _showAddNoteDialog(context),
@@ -51,10 +54,10 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
             ),
             body: SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
                 child: Center(
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 800.0),
+                    constraints: BoxConstraints(maxWidth: isWide ? 1200.0 : 600.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -110,12 +113,12 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.4)),
+        border: Border.all(color: theme.colorScheme.outline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: theme.colorScheme.shadow.withValues(alpha: 0.02),
             blurRadius: 10.0,
             offset: const Offset(0, 4.0),
           ),
@@ -123,7 +126,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, color: AppColors.outline, size: 20.0),
+          Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant, size: 20.0),
           const SizedBox(width: 10.0),
           Expanded(
             child: TextField(
@@ -131,13 +134,16 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
               onChanged: (query) {
                 context.read<NotesBloc>().add(FilterNotesEvent(query: query));
               },
+              style: TextStyle(color: theme.colorScheme.onBackground),
               decoration: InputDecoration(
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
                 hintText: 'Search through records...',
                 hintStyle: TextStyle(
-                  color: AppColors.outline.withValues(alpha: 0.6),
+                  color: theme.colorScheme.onSurfaceVariant,
                   fontSize: 14.0,
                 ),
               ),
@@ -150,7 +156,16 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
 
   // --- Category Filter Chips ---
   Widget _buildCategoryFilterChips(ThemeData theme, BuildContext context) {
-    final categories = ['ALL LOGS', 'TRADING', 'COLLAGE', 'WORKOUT', 'GENERAL'];
+    final notes = _latestState?.notes ?? [];
+    final userCategories = notes
+        .map((n) => n.folder)
+        .where((f) => f.trim().isNotEmpty)
+        .map((f) => f.trim().toUpperCase())
+        .toSet()
+        .toList();
+    userCategories.sort();
+
+    final categories = ['ALL LOGS', ...userCategories];
     final selectedCat = _latestState?.selectedCategory ?? 'ALL LOGS';
 
     return SingleChildScrollView(
@@ -169,12 +184,12 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFDBE1FF) : AppColors.surface,
+                  color: isSelected ? theme.colorScheme.primaryContainer : theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(16.0),
                   border: Border.all(
                     color: isSelected
                         ? Colors.transparent
-                        : AppColors.outlineVariant.withValues(alpha: 0.4),
+                        : theme.colorScheme.outline,
                   ),
                 ),
                 child: Row(
@@ -183,14 +198,14 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                       Icon(
                         Icons.folder_outlined,
                         size: 14.0,
-                        color: isSelected ? const Color(0xFF0D52D0) : AppColors.outline,
+                        color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 6.0),
                     ],
                     Text(
                       cat,
                       style: TextStyle(
-                        color: isSelected ? const Color(0xFF0D52D0) : AppColors.outline,
+                        color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.bold,
                         fontSize: 12.0,
                         letterSpacing: 0.5,

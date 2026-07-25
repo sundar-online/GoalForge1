@@ -3,45 +3,45 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Core Theme Colors
-  static const Color primary = Color(0xFF3B75FF);
-  static const Color primaryContainer = Color(0xFF4F80FF);
+  // Core Theme Colors (Web Design System Alignment)
+  static const Color primary = Color(0xFF6366F1); // Indigo 500
+  static const Color primaryContainer = Color(0xFF4F46E5); // Indigo 600
   static const Color onPrimary = Color(0xFFFFFFFF);
 
-  static const Color secondary = Color(0xFF5B5D72);
+  static const Color secondary = Color(0xFF818CF8); // Indigo 400
   static const Color onSecondary = Color(0xFFFFFFFF);
-  static const Color secondaryContainer = Color(0xFFE0E0FA);
-  static const Color onSecondaryContainer = Color(0xFF616378);
+  static const Color secondaryContainer = Color(0xFF1F2038);
+  static const Color onSecondaryContainer = Color(0xFFC7D2FE);
 
-  static const Color tertiary = Color(0xFF00D9A5); // Soft Mint success base
-  static const Color tertiaryContainer = Color(0xFF008564);
+  static const Color tertiary = Color(0xFF22C55E); // Emerald 500 Success
+  static const Color tertiaryContainer = Color(0xFF15803D);
   static const Color onTertiary = Color(0xFFFFFFFF);
-  static const Color tertiaryFixedDim = Color(0xFF1EE0AC);
+  static const Color tertiaryFixedDim = Color(0xFF4ADE80);
 
-  static const Color background = Color(0xFFF4F7FF); // Neutral cool off-white
-  static const Color onBackground = Color(0xFF1A1C2E);
+  static const Color background = Color(0xFF0B0B14); // Space Dark Background
+  static const Color onBackground = Color(0xFFFFFFFF);
 
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color onSurface = Color(0xFF1A1C2E);
-  static const Color surfaceVariant = Color(0xFFDFE2EA);
-  static const Color onSurfaceVariant = Color(0xFF434654);
+  static const Color surface = Color(0xFF161726); // Card Surface
+  static const Color onSurface = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFF121321); // Input Fill
+  static const Color onSurfaceVariant = Color(0xFF94A3B8); // Muted Text
 
-  static const Color surfaceContainerLow = Color(0xFFF0F4FB);
-  static const Color surfaceContainer = Color(0xFFEBEEF6);
-  static const Color surfaceContainerHigh = Color(0xFFE5E8F0);
-  static const Color surfaceContainerHighest = Color(0xFFDFE2EA);
+  static const Color surfaceContainerLow = Color(0xFF161726);
+  static const Color surfaceContainer = Color(0xFF1A1C2E);
+  static const Color surfaceContainerHigh = Color(0xFF1F2038);
+  static const Color surfaceContainerHighest = Color(0xFF272945);
 
-  static const Color outline = Color(0xFF737686);
-  static const Color outlineVariant = Color(0xFFC3C6D7);
+  static const Color outline = Color(0x14FFFFFF); // 8% White Glass Border
+  static const Color outlineVariant = Color(0x26FFFFFF); // 15% White Glass Border
 
-  static const Color error = Color(0xFFBA1A1A);
-  static const Color errorContainer = Color(0xFFFFDAD6);
+  static const Color error = Color(0xFFEF4444); // Red 500 Danger
+  static const Color errorContainer = Color(0xFF991B1B);
   static const Color onError = Color(0xFFFFFFFF);
 
   // Special/Rank Layer Colors
-  static const Color inverseSurface = Color(0xFF1C1D2A); // Dark Navy Recruit Card
-  static const Color primaryFixedDim = Color(0xFFB4C5FF);
-  static const Color secondaryFixedDim = Color(0xFFC4C5DD);
+  static const Color inverseSurface = Color(0xFF1F2038); // Dark Floating Card
+  static const Color primaryFixedDim = Color(0xFFA5B4FC);
+  static const Color secondaryFixedDim = Color(0xFFC7D2FE);
 
   // Performance Alert Specifics
   static const Color alertWarningText = Color(0xFFB25E09);

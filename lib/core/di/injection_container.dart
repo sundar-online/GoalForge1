@@ -39,10 +39,13 @@ import '../../features/analytics/presentation/bloc/analytics_bloc.dart';
 import '../services/ai_insights_service.dart';
 import '../services/notification_service.dart';
 import '../lifecycle/lifecycle_watcher.dart';
+import '../theme/theme_cubit.dart';
 
 final sl = GetIt.instance;
 
 Future<void> initDependencies() async {
+  // Core Theme
+  sl.registerLazySingleton<ThemeCubit>(() => ThemeCubit());
   // Core Utilities & Services
   sl.registerLazySingleton<LifecycleWatcher>(() => LifecycleWatcher());
   sl.registerLazySingleton<StreakService>(() => const StreakService());

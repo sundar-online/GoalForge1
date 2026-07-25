@@ -5,6 +5,7 @@ import '../../../../core/widgets/custom_card.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
+import '../../../main_navigation_page.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -272,15 +273,10 @@ class _AuthPageState extends State<AuthPage> {
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Simple mock google icon drawing
-                            Image.network(
-                              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/24px-Google_%22G%22_logo.svg.png',
-                              height: 18.0,
-                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata, color: Colors.white, size: 20.0),
-                            ),
-                            const SizedBox(width: 12.0),
-                            const Text(
+                          children: const [
+                            Icon(Icons.g_mobiledata, color: Colors.white, size: 24.0),
+                            SizedBox(width: 12.0),
+                            Text(
                               'Continue with Google',
                               style: TextStyle(
                                 color: Colors.white,
@@ -289,6 +285,22 @@ class _AuthPageState extends State<AuthPage> {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 12.0),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (_) => const MainNavigationPage()),
+                          );
+                        },
+                        child: const Text(
+                          'Continue as Guest →',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14.0,
+                          ),
                         ),
                       ),
                     ],

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import 'flaticon_icon.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -15,23 +15,23 @@ class CustomBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final items = [
-      _NavBarItem(icon: Icons.home, activeIcon: Icons.home_filled, label: 'HOME'),
-      _NavBarItem(icon: Icons.track_changes, activeIcon: Icons.track_changes, label: 'GOALS'),
-      _NavBarItem(icon: Icons.calendar_today, activeIcon: Icons.calendar_today, label: 'TASKS'),
-      _NavBarItem(icon: Icons.description, activeIcon: Icons.description, label: 'NOTES'),
-      _NavBarItem(icon: Icons.timer_outlined, activeIcon: Icons.timer, label: 'FOCUS'),
+      _NavBarItem(flaticonKey: 'home', icon: Icons.home, label: 'HOME'),
+      _NavBarItem(flaticonKey: 'target', icon: Icons.track_changes, label: 'GOALS'),
+      _NavBarItem(flaticonKey: 'calendar', icon: Icons.calendar_today, label: 'TASKS'),
+      _NavBarItem(flaticonKey: 'document', icon: Icons.description, label: 'NOTES'),
+      _NavBarItem(flaticonKey: 'timer', icon: Icons.timer, label: 'FOCUS'),
     ];
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: theme.colorScheme.surface,
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24.0),
           topRight: Radius.circular(24.0),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1A1C2E).withOpacity(0.06),
+            color: theme.colorScheme.shadow.withOpacity(0.08),
             blurRadius: 30.0,
             offset: const Offset(0, -10.0),
           ),
@@ -55,14 +55,14 @@ class CustomBottomNavBar extends StatelessWidget {
               curve: Curves.easeInOut,
               width: 56.0,
               height: 56.0,
-              decoration: const BoxDecoration(
-                color: AppColors.inverseSurface,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0x33000000),
+                    color: theme.colorScheme.primary.withOpacity(0.3),
                     blurRadius: 10.0,
-                    offset: Offset(0, 4.0),
+                    offset: const Offset(0, 4.0),
                   ),
                 ],
               ),
@@ -74,17 +74,18 @@ class CustomBottomNavBar extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        item.activeIcon,
-                        color: Colors.white,
+                      FlaticonIcon(
+                        iconKey: item.flaticonKey,
                         size: 20.0,
+                        color: theme.colorScheme.onPrimary,
+                        overrideFallback: item.icon,
                       ),
                       const SizedBox(height: 2.0),
                       Text(
                         item.label,
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontSize: 9.0,
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimary,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -104,17 +105,18 @@ class CustomBottomNavBar extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        item.icon,
-                        color: AppColors.secondary.withOpacity(0.8),
-                        size: 24.0,
+                      FlaticonIcon(
+                        iconKey: item.flaticonKey,
+                        size: 22.0,
+                        color: theme.colorScheme.onSurfaceVariant,
+                        overrideFallback: item.icon,
                       ),
                       const SizedBox(height: 4.0),
                       Text(
                         item.label,
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontSize: 10.0,
-                          color: AppColors.secondary.withOpacity(0.8),
+                          color: theme.colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -131,13 +133,13 @@ class CustomBottomNavBar extends StatelessWidget {
 }
 
 class _NavBarItem {
+  final String flaticonKey;
   final IconData icon;
-  final IconData activeIcon;
   final String label;
 
   _NavBarItem({
+    required this.flaticonKey,
     required this.icon,
-    required this.activeIcon,
     required this.label,
   });
 }

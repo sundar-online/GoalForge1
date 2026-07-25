@@ -194,7 +194,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         count++;
       }
     }
-    return count > 0 ? (total / count) : 47.0; // Fallback to mockup 47%
+    return count > 0 ? (total / count) : 0.0;
   }
 
   String _calculateWeeklyFocusDuration(List<FocusSession> sessions) {
@@ -210,7 +210,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
 
     if (totalSeconds == 0) {
-      return '11h 41m'; // Fallback to mockup value
+      return '0h 0m';
     }
 
     final hours = totalSeconds ~/ 3600;
@@ -230,9 +230,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         highest = log.accuracyPercent;
         best = dateStr;
       }
-    }
-    if (best == 'N/A') {
-      return '2026-07-18'; // Fallback to mockup value
     }
     return best;
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,11 +18,13 @@ class FirebaseService {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       
-      // Enable Firestore offline persistence
-      db.settings = const Settings(
-        persistenceEnabled: true,
-        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-      );
+      // Enable Firestore offline persistence on native platforms
+      if (!kIsWeb) {
+        db.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+        );
+      }
       
       AppLogger.i('Firebase Core initialized successfully with offline persistence settings.');
     } catch (e) {
