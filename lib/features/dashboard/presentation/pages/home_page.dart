@@ -549,7 +549,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   Text(
-                    'TOTAL XP',
+                    '⭐ TOTAL XP',
                     style: GoogleFonts.plusJakartaSans(
                       color: Colors.white38,
                       fontWeight: FontWeight.w800,
@@ -566,7 +566,7 @@ class _HomePageState extends State<HomePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'LEVEL $level',
+                '🏆 LEVEL $level',
                 style: GoogleFonts.plusJakartaSans(
                   color: Colors.white38,
                   fontWeight: FontWeight.w700,
@@ -574,7 +574,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               Text(
-                'LEVEL ${level + 1}',
+                '🚀 LEVEL ${level + 1}',
                 style: GoogleFonts.plusJakartaSans(
                   color: Colors.white38,
                   fontWeight: FontWeight.w700,
@@ -597,7 +597,7 @@ class _HomePageState extends State<HomePage> {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              '$xpNeeded XP to next level',
+              '⚡ $xpNeeded XP to next level',
               style: GoogleFonts.plusJakartaSans(
                 color: Colors.white38,
                 fontSize: 8.5,

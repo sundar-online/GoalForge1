@@ -93,8 +93,8 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     try {
       await _tasksRepository.toggleTaskCompletion(event.taskId, event.dateStr);
 
-      // Award +10 XP on standalone task completion
-      await _gamificationService.awardXp(10);
+      // Award +5 XP on standalone task completion
+      await _gamificationService.awardXp(5);
     } catch (e) {
       emit(TasksError('Failed to toggle task completion: ${e.toString()}'));
     }

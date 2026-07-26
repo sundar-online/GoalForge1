@@ -47,6 +47,7 @@ class Note extends Equatable {
   final String id;
   final String title;
   final String content;
+  final String type; // 'text' or 'checklist'
   final List<ChecklistItem> checklist;
   final List<String> tags;
   final String folder;
@@ -58,6 +59,7 @@ class Note extends Equatable {
     required this.id,
     required this.title,
     required this.content,
+    this.type = 'text',
     required this.checklist,
     required this.tags,
     required this.folder,
@@ -70,6 +72,7 @@ class Note extends Equatable {
     String? id,
     String? title,
     String? content,
+    String? type,
     List<ChecklistItem>? checklist,
     List<String>? tags,
     String? folder,
@@ -81,6 +84,7 @@ class Note extends Equatable {
       id: id ?? this.id,
       title: title ?? this.title,
       content: content ?? this.content,
+      type: type ?? this.type,
       checklist: checklist ?? this.checklist,
       tags: tags ?? this.tags,
       folder: folder ?? this.folder,
@@ -95,6 +99,7 @@ class Note extends Equatable {
       'id': id,
       'title': title,
       'content': content,
+      'type': type,
       'checklist': checklist.map((item) => item.toJson()).toList(),
       'tags': tags,
       'folder': folder,
@@ -106,13 +111,17 @@ class Note extends Equatable {
 
   factory Note.fromJson(Map<String, dynamic> json) {
     var checklistList = json['checklist'] as List? ?? [];
+    final items = checklistList
+        .map((item) => ChecklistItem.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+    final defaultType = items.isNotEmpty ? 'checklist' : 'text';
+
     return Note(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       content: json['content'] as String? ?? '',
-      checklist: checklistList
-          .map((item) => ChecklistItem.fromJson(Map<String, dynamic>.from(item)))
-          .toList(),
+      type: json['type'] as String? ?? defaultType,
+      checklist: items,
       tags: List<String>.from(json['tags'] ?? []),
       folder: json['folder'] as String? ?? 'General',
       pinned: json['pinned'] as bool? ?? false,
@@ -134,6 +143,7 @@ class Note extends Equatable {
         id,
         title,
         content,
+        type,
         checklist,
         tags,
         folder,

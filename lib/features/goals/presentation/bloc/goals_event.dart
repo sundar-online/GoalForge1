@@ -51,6 +51,35 @@ class ToggleFocusGoalEvent extends GoalsEvent {
   List<Object?> get props => [goalId];
 }
 
+class ToggleMissingDreamEvent extends GoalsEvent {
+  final String goalId;
+
+  const ToggleMissingDreamEvent(this.goalId);
+
+  @override
+  List<Object?> get props => [goalId];
+}
+
+class ReorderGoalEvent extends GoalsEvent {
+  final String goalId;
+  final String direction; // 'up' or 'down'
+
+  const ReorderGoalEvent({required this.goalId, required this.direction});
+
+  @override
+  List<Object?> get props => [goalId, direction];
+}
+
+class ExtendDeadlineEvent extends GoalsEvent {
+  final String goalId;
+  final String newDeadline; // 'YYYY-MM-DD'
+
+  const ExtendDeadlineEvent({required this.goalId, required this.newDeadline});
+
+  @override
+  List<Object?> get props => [goalId, newDeadline];
+}
+
 class SwitchActiveTabEvent extends GoalsEvent {
   final String activeTab;
 

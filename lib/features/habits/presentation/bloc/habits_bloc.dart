@@ -24,6 +24,8 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
     on<_HabitsDataChanged>(_onHabitsDataChanged);
     on<ToggleHabitCompletionEvent>(_onToggleHabitCompletion);
     on<UpdateHabitProgressEvent>(_onUpdateHabitProgress);
+    on<LogHabitTimeEvent>(_onLogHabitTime);
+    on<UpdateHabitCountEvent>(_onUpdateHabitCount);
     on<CreateStandAloneHabitEvent>(_onCreateStandAloneHabit);
     on<DeleteHabitEvent>(_onDeleteHabit);
     on<SearchHabitsEvent>(_onSearchHabits);
@@ -95,8 +97,8 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
     try {
       await _goalsRepository.toggleHabitCompletion(event.habitId, event.dateStr);
 
-      // Award +50 XP via GamificationService
-      await _gamificationService.awardXp(50);
+      // Award +20 XP via GamificationService
+      await _gamificationService.awardXp(20);
     } catch (e) {
       emit(HabitsError('Failed to toggle completion: ${e.toString()}'));
     }
@@ -134,6 +136,48 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
     if (state is HabitsLoaded) {
       emit((state as HabitsLoaded).copyWith(searchQuery: event.query));
       _recalculateAndEmit(emit);
+    }
+  }
+
+  Future<void> _onLogHabitTime(LogHabitTimeEvent event, Emitter<HabitsState> emit) async {
+    try {
+      final habit = _goalsRepository.getAllHabits().firstWhere((h) => h.id == event.habitId);
+      final newTime = habit.timeSpent + event.minutes;
+      await _goalsRepository.updateHabitProgress(
+        event.habitId,
+        timeSpent: newTime,
+      );
+      // Auto-complete if target reached
+      if (newTime >= habit.targetTime && habit.targetTime > 0) {
+        final todayStr = AppDateUtils.getTodayString();
+        if (!habit.completedDates.contains(todayStr)) {
+          await _goalsRepository.toggleHabitCompletion(event.habitId, todayStr);
+          await _gamificationService.awardXp(50);
+        }
+      }
+    } catch (e) {
+      emit(HabitsError('Failed to log time: ${e.toString()}'));
+    }
+  }
+
+  Future<void> _onUpdateHabitCount(UpdateHabitCountEvent event, Emitter<HabitsState> emit) async {
+    try {
+      final habit = _goalsRepository.getAllHabits().firstWhere((h) => h.id == event.habitId);
+      final newCount = (habit.currentCount + event.delta).clamp(0, 9999);
+      await _goalsRepository.updateHabitProgress(
+        event.habitId,
+        currentCount: newCount,
+      );
+      // Auto-complete if target reached
+      if (newCount >= habit.targetCount && habit.targetCount > 0) {
+        final todayStr = AppDateUtils.getTodayString();
+        if (!habit.completedDates.contains(todayStr)) {
+          await _goalsRepository.toggleHabitCompletion(event.habitId, todayStr);
+          await _gamificationService.awardXp(50);
+        }
+      }
+    } catch (e) {
+      emit(HabitsError('Failed to update count: ${e.toString()}'));
     }
   }
 

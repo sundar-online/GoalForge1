@@ -19,6 +19,7 @@ class GoalsLoaded extends GoalsState {
   final double avgMastery;
   final int finishedCount;
   final int inProgressCount;
+  final int missingCount;
   final String activeTab; // 'ACTIVE', 'MISSING'
 
   const GoalsLoaded({
@@ -27,6 +28,7 @@ class GoalsLoaded extends GoalsState {
     this.avgMastery = 0.0,
     this.finishedCount = 0,
     this.inProgressCount = 0,
+    this.missingCount = 0,
     this.activeTab = 'ACTIVE',
   });
 
@@ -36,6 +38,7 @@ class GoalsLoaded extends GoalsState {
     double? avgMastery,
     int? finishedCount,
     int? inProgressCount,
+    int? missingCount,
     String? activeTab,
   }) {
     return GoalsLoaded(
@@ -44,6 +47,7 @@ class GoalsLoaded extends GoalsState {
       avgMastery: avgMastery ?? this.avgMastery,
       finishedCount: finishedCount ?? this.finishedCount,
       inProgressCount: inProgressCount ?? this.inProgressCount,
+      missingCount: missingCount ?? this.missingCount,
       activeTab: activeTab ?? this.activeTab,
     );
   }
@@ -55,6 +59,7 @@ class GoalsLoaded extends GoalsState {
         avgMastery,
         finishedCount,
         inProgressCount,
+        missingCount,
         activeTab,
       ];
 }

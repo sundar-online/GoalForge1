@@ -59,6 +59,8 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               child: TextField(
                 decoration: InputDecoration(
+                  filled: false,
+                  fillColor: Colors.transparent,
                   hintText: 'Search goals, tasks, notes... (Ctrl+K)',
                   hintStyle: TextStyle(
                     fontSize: 13.0,
@@ -70,6 +72,11 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
                     color: theme.colorScheme.outline,
                   ),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 10.0),
                 ),
               ),

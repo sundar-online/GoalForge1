@@ -9,6 +9,7 @@ class Goal extends Equatable {
   final String? tag;
   final String? deadline; // YYYY-MM-DD
   final bool isFocusGoal;
+  final bool isMissingDream;
   final double progress; // 0.0 to 100.0
   final int streak;
   final int bestStreak;
@@ -27,6 +28,7 @@ class Goal extends Equatable {
     this.tag,
     this.deadline,
     this.isFocusGoal = false,
+    this.isMissingDream = false,
     this.progress = 0.0,
     this.streak = 0,
     this.bestStreak = 0,
@@ -46,6 +48,7 @@ class Goal extends Equatable {
     String? tag,
     String? deadline,
     bool? isFocusGoal,
+    bool? isMissingDream,
     double? progress,
     int? streak,
     int? bestStreak,
@@ -64,6 +67,7 @@ class Goal extends Equatable {
       tag: tag ?? this.tag,
       deadline: deadline ?? this.deadline,
       isFocusGoal: isFocusGoal ?? this.isFocusGoal,
+      isMissingDream: isMissingDream ?? this.isMissingDream,
       progress: progress ?? this.progress,
       streak: streak ?? this.streak,
       bestStreak: bestStreak ?? this.bestStreak,
@@ -85,6 +89,7 @@ class Goal extends Equatable {
       'tag': tag,
       'deadline': deadline,
       'isFocusGoal': isFocusGoal,
+      'isMissingDream': isMissingDream,
       'progress': progress,
       'streak': streak,
       'bestStreak': bestStreak,
@@ -106,6 +111,7 @@ class Goal extends Equatable {
       tag: json['tag'] as String?,
       deadline: json['deadline'] as String?,
       isFocusGoal: json['isFocusGoal'] as bool? ?? false,
+      isMissingDream: json['isMissingDream'] as bool? ?? false,
       progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
       streak: json['streak'] as int? ?? 0,
       bestStreak: json['bestStreak'] as int? ?? 0,
@@ -135,6 +141,7 @@ class Goal extends Equatable {
         tag,
         deadline,
         isFocusGoal,
+        isMissingDream,
         progress,
         streak,
         bestStreak,

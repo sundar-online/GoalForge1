@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
 class DesktopSidebarItem {
@@ -216,47 +217,68 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                     Row(
                       children: [
                         Container(
-                          width: 6.0,
-                          height: 6.0,
+                          width: 7.0,
+                          height: 7.0,
                           decoration: const BoxDecoration(
-                            color: AppColors.primary,
+                            color: Color(0xFFFF9500),
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 6.0),
                         Text(
-                          'FORGE FOCUS',
+                          'FOCUS GOAL',
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF395BFF),
+                            fontWeight: FontWeight.w900,
                             fontSize: 9.0,
                             letterSpacing: 0.8,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6.0),
+                    const SizedBox(height: 4.0),
                     Text(
-                      widget.focusGoalTitle ?? 'No Focus Goal set. Toggle star on any goal card to focus.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11.0,
+                      widget.focusGoalTitle ?? 'Eloquent English',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.0,
+                        color: const Color(0xFF0F172A),
                       ),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (widget.focusGoalProgress != null) ...[
-                      const SizedBox(height: 8.0),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4.0),
-                        child: LinearProgressIndicator(
-                          value: widget.focusGoalProgress! / 100.0,
-                          minHeight: 4.0,
-                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    const SizedBox(height: 4.0),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Mastery',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: const Color(0xFF94A3B8),
+                            fontSize: 10.0,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                        Text(
+                          '${(widget.focusGoalProgress ?? 10).toInt()}%',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: const Color(0xFF0F172A),
+                            fontSize: 10.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6.0),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4.0),
+                      child: LinearProgressIndicator(
+                        value: (widget.focusGoalProgress ?? 10.0) / 100.0,
+                        minHeight: 4.0,
+                        backgroundColor: const Color(0xFFE2E8F0),
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),

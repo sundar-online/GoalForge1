@@ -68,3 +68,24 @@ class SearchHabitsEvent extends HabitsEvent {
   @override
   List<Object?> get props => [query];
 }
+
+class LogHabitTimeEvent extends HabitsEvent {
+  final String habitId;
+  final int minutes;
+
+  const LogHabitTimeEvent({required this.habitId, required this.minutes});
+
+  @override
+  List<Object?> get props => [habitId, minutes];
+}
+
+class UpdateHabitCountEvent extends HabitsEvent {
+  final String habitId;
+  final int delta; // +1 or -1
+
+  const UpdateHabitCountEvent({required this.habitId, required this.delta});
+
+  @override
+  List<Object?> get props => [habitId, delta];
+}
+

@@ -19,6 +19,9 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
     on<UpdateGoalEvent>(_onUpdateGoal);
     on<DeleteGoalEvent>(_onDeleteGoal);
     on<ToggleFocusGoalEvent>(_onToggleFocusGoal);
+    on<ToggleMissingDreamEvent>(_onToggleMissingDream);
+    on<ReorderGoalEvent>(_onReorderGoal);
+    on<ExtendDeadlineEvent>(_onExtendDeadline);
     on<SwitchActiveTabEvent>(_onSwitchActiveTab);
   }
 
@@ -42,18 +45,24 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
       double totalMastery = 0.0;
       int finished = 0;
       int inProgress = 0;
+      int missingCount = 0;
 
       for (var goal in goals) {
         habitsMap[goal.id] = _goalsRepository.getHabits(goal.id);
-        totalMastery += goal.progress;
-        if (goal.progress >= 100.0) {
-          finished++;
+        if (goal.isMissingDream) {
+          missingCount++;
         } else {
-          inProgress++;
+          totalMastery += goal.progress;
+          if (goal.progress >= 100.0) {
+            finished++;
+          } else {
+            inProgress++;
+          }
         }
       }
 
-      final avgMastery = goals.isNotEmpty ? (totalMastery / goals.length) : 0.0;
+      final activeGoals = goals.where((g) => !g.isMissingDream).toList();
+      final avgMastery = activeGoals.isNotEmpty ? (totalMastery / activeGoals.length) : 0.0;
       final currentTab = (state is GoalsLoaded) ? (state as GoalsLoaded).activeTab : 'ACTIVE';
 
       emit(GoalsLoaded(
@@ -62,6 +71,7 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
         avgMastery: avgMastery,
         finishedCount: finished,
         inProgressCount: inProgress,
+        missingCount: missingCount,
         activeTab: currentTab,
       ));
     } catch (e) {
@@ -106,6 +116,48 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
       }
     } catch (e) {
       emit(GoalsError('Failed to toggle focus goal: ${e.toString()}'));
+    }
+  }
+
+  Future<void> _onToggleMissingDream(ToggleMissingDreamEvent event, Emitter<GoalsState> emit) async {
+    try {
+      final goals = _goalsRepository.getGoals();
+      final target = goals.firstWhere((g) => g.id == event.goalId);
+      final updated = target.copyWith(isMissingDream: !target.isMissingDream);
+      await _goalsRepository.upsertGoal(updated);
+    } catch (e) {
+      emit(GoalsError('Failed to toggle missing dream: ${e.toString()}'));
+    }
+  }
+
+  Future<void> _onReorderGoal(ReorderGoalEvent event, Emitter<GoalsState> emit) async {
+    try {
+      final goals = List.from(_goalsRepository.getGoals())
+        ..sort((a, b) => a.order.compareTo(b.order));
+      final idx = goals.indexWhere((g) => g.id == event.goalId);
+      if (idx < 0) return;
+
+      final swapIdx = event.direction == 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= goals.length) return;
+
+      final goal = goals[idx];
+      final swapGoal = goals[swapIdx];
+
+      await _goalsRepository.upsertGoal(goal.copyWith(order: swapGoal.order));
+      await _goalsRepository.upsertGoal(swapGoal.copyWith(order: goal.order));
+    } catch (e) {
+      emit(GoalsError('Failed to reorder goal: ${e.toString()}'));
+    }
+  }
+
+  Future<void> _onExtendDeadline(ExtendDeadlineEvent event, Emitter<GoalsState> emit) async {
+    try {
+      final goals = _goalsRepository.getGoals();
+      final target = goals.firstWhere((g) => g.id == event.goalId);
+      final updated = target.copyWith(deadline: event.newDeadline);
+      await _goalsRepository.upsertGoal(updated);
+    } catch (e) {
+      emit(GoalsError('Failed to extend deadline: ${e.toString()}'));
     }
   }
 
