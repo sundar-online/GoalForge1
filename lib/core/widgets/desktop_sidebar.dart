@@ -198,7 +198,7 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
           ),
 
           // Pinned Bottom Focus Goal Widget Card
-          if (!widget.isCollapsed)
+          if (!widget.isCollapsed && widget.focusGoalTitle != null && widget.focusGoalTitle!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
               child: Container(
@@ -239,7 +239,7 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                     ),
                     const SizedBox(height: 4.0),
                     Text(
-                      widget.focusGoalTitle ?? 'Eloquent English',
+                      widget.focusGoalTitle!,
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w800,
                         fontSize: 12.0,

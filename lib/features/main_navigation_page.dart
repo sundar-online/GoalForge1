@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../core/di/injection_container.dart';
 import '../core/responsive/responsive_layout.dart';
+import '../core/domain/models/goal.dart';
 import '../core/widgets/bottom_nav_bar.dart';
 import '../core/widgets/desktop_sidebar.dart';
 import '../core/widgets/desktop_app_bar.dart';
@@ -10,6 +11,7 @@ import 'dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'dashboard/presentation/bloc/dashboard_event.dart';
 import 'dashboard/presentation/pages/home_page.dart';
 import 'goals/presentation/bloc/goals_bloc.dart';
+import 'goals/presentation/bloc/goals_state.dart';
 import 'goals/presentation/bloc/goals_event.dart';
 import 'goals/presentation/pages/goals_page.dart';
 import 'habits/presentation/bloc/habits_bloc.dart';
@@ -89,8 +91,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         BlocProvider(create: (_) => sl<FocusBloc>()..add(SubscribeToFocus())),
         BlocProvider(create: (_) => sl<AnalyticsBloc>()..add(SubscribeToAnalytics())),
       ],
-      child: ResponsiveLayout(
-        // --- MOBILE LAYOUT (<600px) ---
+      child: NotificationListener<TabNavigationNotification>(
+        onNotification: (notification) {
+          setState(() {
+            _currentIndex = notification.index;
+          });
+          return true;
+        },
+        child: ResponsiveLayout(
+          // --- MOBILE LAYOUT (<600px) ---
         mobile: Scaffold(
           body: IndexedStack(
             index: _currentIndex,
@@ -125,11 +134,26 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         desktop: Scaffold(
           body: Row(
             children: [
-              DesktopSidebar(
-                currentIndex: _currentIndex < 5 ? _currentIndex : 0,
-                onTabSelected: _onTabTapped,
-                isCollapsed: _isSidebarCollapsed,
-                onToggleCollapse: _toggleSidebarCollapse,
+              BlocBuilder<GoalsBloc, GoalsState>(
+                builder: (context, state) {
+                  Goal? focusGoal;
+                  if (state is GoalsLoaded) {
+                    for (final g in state.goals) {
+                      if (g.isFocusGoal) {
+                        focusGoal = g;
+                        break;
+                      }
+                    }
+                  }
+                  return DesktopSidebar(
+                    currentIndex: _currentIndex < 5 ? _currentIndex : 0,
+                    onTabSelected: _onTabTapped,
+                    isCollapsed: _isSidebarCollapsed,
+                    onToggleCollapse: _toggleSidebarCollapse,
+                    focusGoalTitle: focusGoal?.title,
+                    focusGoalProgress: focusGoal?.progress,
+                  );
+                },
               ),
               Expanded(
                 child: IndexedStack(
@@ -141,6 +165,12 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+}
+
+class TabNavigationNotification extends Notification {
+  final int index;
+  const TabNavigationNotification(this.index);
 }

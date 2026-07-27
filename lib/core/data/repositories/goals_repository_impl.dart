@@ -160,18 +160,30 @@ class GoalsRepositoryImpl implements GoalsRepository {
 
     await upsertHabit(updatedHabit);
 
-    // Recalculate parent goal progress via ProgressService
+    // Recalculate parent goal progress and completedDates via ProgressService
     if (habit.goalId.isNotEmpty) {
       final parentGoalJson = LocalDatabaseService.get(LocalDatabaseService.boxGoals, habit.goalId);
       if (parentGoalJson != null) {
         final parentGoal = Goal.fromJson(parentGoalJson);
+        // Use the habit list AFTER the toggle (siblingHabits already has updated habit)
         final siblingHabits = _mapHabits(habit.goalId);
-        final progress = _progressService.calculateGoalProgress(
-          mode: parentGoal.mode,
+
+        final updatedCompletedDates = _progressService.calculateUpdatedGoalCompletedDates(
+          goal: parentGoal,
           habits: siblingHabits,
           todayDateStr: dateStr,
         );
-        final updatedGoal = parentGoal.copyWith(progress: progress);
+
+        final progress = _progressService.calculateGoalProgress(
+          goal: parentGoal.copyWith(completedDates: updatedCompletedDates),
+          habits: siblingHabits,
+          todayDateStr: dateStr,
+        );
+
+        final updatedGoal = parentGoal.copyWith(
+          progress: progress,
+          completedDates: updatedCompletedDates,
+        );
         await upsertGoal(updatedGoal);
       }
     }

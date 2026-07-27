@@ -11,6 +11,8 @@ import '../../../auth/presentation/bloc/auth_state.dart' as auth;
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_state.dart';
 import '../../../../core/theme/theme_cubit.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../main_navigation_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -63,6 +65,10 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       // Header Section
                       _buildHeader(theme),
+                      const SizedBox(height: 20.0),
+
+                      // Tab Selector
+                      _buildTabSelector(theme),
                       const SizedBox(height: 24.0),
 
                       // Dynamic Tab Content
@@ -103,7 +109,7 @@ class _HomePageState extends State<HomePage> {
                 'Hey, $displayName 👋',
                 style: AppTypography.displayFont(
                   fontWeight: FontWeight.w800,
-                  color: const Color(0xFF1E2235),
+                  color: AppThemeTokens.of(context).contentSecondary,
                   fontSize: 26.0,
                   letterSpacing: -0.5,
                 ),
@@ -113,7 +119,7 @@ class _HomePageState extends State<HomePage> {
                 '"Small daily improvements lead to stunning results."',
                 style: AppTypography.bodyFont(
                   fontWeight: FontWeight.w400,
-                  color: const Color(0xFF7A8499),
+                  color: AppThemeTokens.of(context).contentTertiary,
                   fontSize: 13.0,
                 ),
               ),
@@ -204,6 +210,73 @@ class _HomePageState extends State<HomePage> {
             fontSize: 15.0,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTabSelector(ThemeData theme) {
+    final tokens = AppThemeTokens.of(context);
+
+    Widget buildTabButton(String label, String tabKey, IconData icon) {
+      final isActive = _activeTab == tabKey;
+      return GestureDetector(
+        onTap: () {
+          setState(() {
+            _activeTab = tabKey;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+          decoration: BoxDecoration(
+            color: isActive ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(10.0),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      blurRadius: 8.0,
+                      offset: const Offset(0, 2),
+                    )
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 15.0,
+                color: isActive ? Colors.white : tokens.contentSecondary,
+              ),
+              const SizedBox(width: 6.0),
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w800,
+                  color: isActive ? Colors.white : tokens.contentSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4.0),
+      decoration: BoxDecoration(
+        color: tokens.surfaceChip,
+        borderRadius: BorderRadius.circular(14.0),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          buildTabButton('Overview', 'OVERVIEW', Icons.dashboard_outlined),
+          buildTabButton('Goals', 'GOALS', Icons.track_changes_outlined),
+          buildTabButton('Tasks', 'TASKS', Icons.checklist_outlined),
+        ],
       ),
     );
   }
@@ -388,10 +461,10 @@ class _HomePageState extends State<HomePage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.schedule, size: 12.0, color: AppColors.outline),
+                    const Icon(Icons.checklist, size: 12.0, color: AppColors.outline),
                     const SizedBox(width: 4.0),
                     Text(
-                      '$habitsLeft hours left today',
+                      '$habitsLeft habits left today',
                       style: GoogleFonts.plusJakartaSans(
                         color: AppColors.outline,
                         fontWeight: FontWeight.bold,
@@ -440,7 +513,7 @@ class _HomePageState extends State<HomePage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () => const TabNavigationNotification(1).dispatch(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -765,28 +838,19 @@ class _HomePageState extends State<HomePage> {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                '00:00',
+                _latestState?.weeklyFocusDuration ?? '0h 0m',
                 style: GoogleFonts.plusJakartaSans(
                   color: Colors.white,
-                  fontSize: 50.0,
+                  fontSize: 38.0,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -1.0,
-                ),
-              ),
-              const SizedBox(width: 6.0),
-              Text(
-                'HRS',
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white38,
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 24.0),
           ElevatedButton(
-            onPressed: () {},
+            onPressed: () => const TabNavigationNotification(4).dispatch(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white.withValues(alpha: 0.1),
               foregroundColor: Colors.white,
@@ -934,7 +998,7 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             TextButton(
-              onPressed: () {},
+              onPressed: () => const TabNavigationNotification(1).dispatch(context),
               child: Text(
                 'View All Systems',
                 style: GoogleFonts.plusJakartaSans(
@@ -1120,7 +1184,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 8.0),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () => const TabNavigationNotification(2).dispatch(context),
                   child: Text(
                     '+ Schedule your first event',
                     style: GoogleFonts.plusJakartaSans(
@@ -1690,12 +1754,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildMiniStat(ThemeData theme, String val, String label, IconData icon, Color iconBg, Color iconColor) {
+    final tokens = AppThemeTokens.of(context);
     return Container(
       padding: const EdgeInsets.all(10.0),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFCFF),
+        color: tokens.surfaceElevated,
         borderRadius: BorderRadius.circular(10.0),
-        border: Border.all(color: const Color(0xFFE5E9F2)),
+        border: Border.all(color: tokens.borderDefault),
       ),
       child: Column(
         children: [
@@ -1709,9 +1774,9 @@ class _HomePageState extends State<HomePage> {
             child: Icon(icon, size: 14.0, color: iconColor),
           ),
           const SizedBox(height: 8.0),
-          Text(val, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16.0, color: const Color(0xFF1E2235))),
+          Text(val, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16.0, color: tokens.contentSecondary)),
           const SizedBox(height: 2.0),
-          Text(label, textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 7.0, color: const Color(0xFF8C97AB), fontWeight: FontWeight.w800)),
+          Text(label, textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 7.0, color: tokens.contentTertiary, fontWeight: FontWeight.w800)),
         ],
       ),
     );
