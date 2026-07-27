@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/domain/models/note.dart';
 import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -151,7 +152,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                   _viewMode = NoteViewMode.create;
                 });
               },
-              icon: const Icon(Icons.add, size: 18.0),
+              icon: const Icon(LucideIcons.plus, size: 18.0),
               label: Text(
                 'New Note',
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 14.0),
@@ -200,7 +201,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
       ),
       child: Row(
         children: [
-          Icon(Icons.search, color: tokens.iconSubtle, size: 20.0),
+          Icon(LucideIcons.search, color: tokens.iconSubtle, size: 20.0),
           const SizedBox(width: 10.0),
           Expanded(
             child: TextField(
@@ -269,7 +270,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                   children: [
                     if (isFolder) ...[
                       Icon(
-                        Icons.folder_outlined,
+                        LucideIcons.folder,
                         size: 14.0,
                         color: isSelected ? Colors.white : tokens.iconSubtle,
                       ),
@@ -302,7 +303,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
       children: [
         Row(
           children: [
-            const Icon(Icons.push_pin, color: AppColors.primary, size: 14.0),
+            const Icon(LucideIcons.pin, color: AppColors.primary, size: 14.0),
             const SizedBox(width: 6.0),
             Text(
               'PINNED LOGS',
@@ -331,7 +332,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
         child: Center(
           child: Column(
             children: [
-              const Icon(Icons.description_outlined, size: 48.0, color: Color(0xFF8C97AB)),
+              const Icon(LucideIcons.fileText, size: 48.0, color: Color(0xFF8C97AB)),
               const SizedBox(height: 12.0),
               Text(
                 'No Records Found',
@@ -397,7 +398,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                   borderRadius: BorderRadius.circular(12.0),
                 ),
                 child: Icon(
-                  isChecklist ? Icons.checklist : Icons.description_outlined,
+                  isChecklist ? LucideIcons.checkSquare : LucideIcons.fileText,
                   color: isChecklist ? AppColors.primary : AppThemeTokens.of(context).iconSubtle,
                   size: 20.0,
                 ),
@@ -419,7 +420,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                         ),
                         if (note.pinned) ...[
                           const SizedBox(width: 6.0),
-                          const Icon(Icons.push_pin, color: AppColors.primary, size: 14.0),
+                          const Icon(LucideIcons.pin, color: AppColors.primary, size: 14.0),
                         ],
                       ],
                     ),
@@ -460,7 +461,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                 children: [
                   IconButton(
                     icon: Icon(
-                      note.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      note.pinned ? LucideIcons.pin : LucideIcons.pin,
                       color: note.pinned ? AppColors.primary : const Color(0xFFCBD5E1),
                       size: 18.0,
                     ),
@@ -469,7 +470,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Color(0xFFCBD5E1), size: 18.0),
+                    icon: const Icon(LucideIcons.trash2, color: Color(0xFFCBD5E1), size: 18.0),
                     onPressed: () {
                       context.read<NotesBloc>().add(DeleteNoteEvent(note.id));
                     },
@@ -515,7 +516,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                   borderRadius: BorderRadius.circular(10.0),
                   border: Border.all(color: AppThemeTokens.of(context).borderDefault),
                 ),
-                child: Icon(Icons.arrow_back, color: AppThemeTokens.of(context).iconDefault, size: 18.0),
+                child: Icon(LucideIcons.arrowLeft, color: AppThemeTokens.of(context).iconDefault, size: 18.0),
               ),
             ),
             const SizedBox(width: 14.0),
@@ -581,7 +582,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                   Expanded(
                     child: _buildStructureCard(
                       title: 'Free Text',
-                      icon: Icons.description_outlined,
+                      icon: LucideIcons.fileText,
                       typeKey: 'text',
                     ),
                   ),
@@ -589,7 +590,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                   Expanded(
                     child: _buildStructureCard(
                       title: 'Checklist',
-                      icon: Icons.checklist,
+                      icon: LucideIcons.checkSquare,
                       typeKey: 'checklist',
                     ),
                   ),
@@ -606,7 +607,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                 decoration: InputDecoration(
                   hintText: 'Or type a new folder name...',
                   hintStyle: GoogleFonts.plusJakartaSans(color: AppThemeTokens.of(context).iconSubtle, fontSize: 13.0),
-                  suffixIcon: Icon(Icons.create_new_folder_outlined, size: 18.0, color: AppThemeTokens.of(context).iconSubtle),
+                  suffixIcon: Icon(LucideIcons.folderPlus, size: 18.0, color: AppThemeTokens.of(context).iconSubtle),
                   filled: false,
                   fillColor: Colors.transparent,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
@@ -743,7 +744,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                           borderRadius: BorderRadius.circular(10.0),
                           border: Border.all(color: tk.borderDefault),
                         ),
-                        child: Icon(Icons.arrow_back, color: tk.iconDefault, size: 18.0),
+                        child: Icon(LucideIcons.arrowLeft, color: tk.iconDefault, size: 18.0),
                       );
                     },
                   ),
@@ -771,7 +772,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                     const SizedBox(height: 2.0),
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 12.0, color: AppThemeTokens.of(context).iconSubtle),
+                        Icon(LucideIcons.clock, size: 12.0, color: AppThemeTokens.of(context).iconSubtle),
                         const SizedBox(width: 4.0),
                         Text(
                           'JUST NOW',
@@ -785,7 +786,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                         const SizedBox(width: 12.0),
                         Row(
                           children: [
-                            Icon(Icons.folder_outlined, size: 12.0, color: AppThemeTokens.of(context).iconSubtle),
+                            Icon(LucideIcons.folder, size: 12.0, color: AppThemeTokens.of(context).iconSubtle),
                             const SizedBox(width: 4.0),
                             Text(
                               note.folder.isEmpty ? 'ADD TO FOLDER ∨' : '${note.folder.toUpperCase()} ∨',
@@ -821,7 +822,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                       border: Border.all(color: AppThemeTokens.of(context).borderDefault),
                     ),
                     child: Icon(
-                      Icons.push_pin,
+                      LucideIcons.pin,
                       color: note.pinned ? AppColors.primary : AppThemeTokens.of(context).iconSubtle,
                       size: 16.0,
                     ),
@@ -842,7 +843,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                       color: Color(0xFFFEE2E2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 16.0),
+                    child: const Icon(LucideIcons.trash2, color: Color(0xFFEF4444), size: 16.0),
                   ),
                 ),
               ],
@@ -908,7 +909,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
             },
             child: Row(
               children: [
-                Icon(Icons.checklist, size: 14.0, color: AppThemeTokens.of(context).iconSubtle),
+                Icon(LucideIcons.checkSquare, size: 14.0, color: AppThemeTokens.of(context).iconSubtle),
                 const SizedBox(width: 6.0),
                 Text(
                   'CONVERT TO OPERATIONAL CHECKLIST',
@@ -1011,7 +1012,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                                 ),
                               ),
                               child: item.completed
-                                  ? const Icon(Icons.check_rounded, size: 16.0, color: Colors.white)
+                                  ? const Icon(LucideIcons.check, size: 16.0, color: Colors.white)
                                   : null,
                             ),
                           ),
@@ -1060,7 +1061,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                                 _activeNote = updatedNote;
                               });
                             },
-                            child: Icon(Icons.close_rounded, size: 18.0, color: tokens.iconSubtle.withValues(alpha: 0.6)),
+                            child: Icon(LucideIcons.x, size: 18.0, color: tokens.iconSubtle.withValues(alpha: 0.6)),
                           ),
                         ],
                       ),
@@ -1091,7 +1092,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                               borderRadius: BorderRadius.circular(8.0),
                               border: Border.all(color: tokens.borderDefault),
                             ),
-                            child: Icon(Icons.add_rounded, size: 16.0, color: tokens.iconSubtle),
+                            child: Icon(LucideIcons.plus, size: 16.0, color: tokens.iconSubtle),
                           ),
                         ),
                         const SizedBox(width: 14.0),
@@ -1132,7 +1133,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                     },
                     child: Row(
                       children: [
-                        Icon(Icons.description_outlined, size: 14.0, color: AppThemeTokens.of(context).iconSubtle),
+                        Icon(LucideIcons.fileText, size: 14.0, color: AppThemeTokens.of(context).iconSubtle),
                         const SizedBox(width: 6.0),
                         Text(
                           'CONVERT TO FREE TEXT NOTE',
@@ -1224,12 +1225,12 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildToolbarIcon(Icons.undo, onTap: () {
+                _buildToolbarIcon(LucideIcons.undo2, onTap: () {
                   if (_editorContentController.text.isNotEmpty) {
                     _editorContentController.clear();
                   }
                 }),
-                _buildToolbarIcon(Icons.redo, onTap: () {}),
+                _buildToolbarIcon(LucideIcons.redo2, onTap: () {}),
                 _buildToolbarDivider(),
                 _buildToolbarTextBtn('H1', onTap: () => _insertLinePrefix('# ')),
                 _buildToolbarTextBtn('H2', onTap: () => _insertLinePrefix('## ')),
@@ -1241,20 +1242,20 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                 _buildToolbarTextBtn('U', underline: true, onTap: () => _insertFormatting('<u>', '</u>')),
                 _buildToolbarTextBtn('S', strikethrough: true, onTap: () => _insertFormatting('~~', '~~')),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(Icons.format_align_left, onTap: () {}),
-                _buildToolbarIcon(Icons.format_align_center, onTap: () {}),
-                _buildToolbarIcon(Icons.format_align_right, onTap: () {}),
+                _buildToolbarIcon(LucideIcons.alignLeft, onTap: () {}),
+                _buildToolbarIcon(LucideIcons.alignCenter, onTap: () {}),
+                _buildToolbarIcon(LucideIcons.alignRight, onTap: () {}),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(Icons.format_list_bulleted, onTap: () => _insertLinePrefix('• ')),
-                _buildToolbarIcon(Icons.format_list_numbered, onTap: () => _insertLinePrefix('1. ')),
-                _buildToolbarIcon(Icons.checklist_rtl, onTap: () => _insertLinePrefix('[ ] ')),
+                _buildToolbarIcon(LucideIcons.list, onTap: () => _insertLinePrefix('• ')),
+                _buildToolbarIcon(LucideIcons.listOrdered, onTap: () => _insertLinePrefix('1. ')),
+                _buildToolbarIcon(LucideIcons.checkSquare, onTap: () => _insertLinePrefix('[ ] ')),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(Icons.format_quote, onTap: () => _insertLinePrefix('> ')),
-                _buildToolbarIcon(Icons.code, onTap: () => _insertFormatting('`', '`')),
+                _buildToolbarIcon(LucideIcons.quote, onTap: () => _insertLinePrefix('> ')),
+                _buildToolbarIcon(LucideIcons.code, onTap: () => _insertFormatting('`', '`')),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(Icons.color_lens_outlined, onTap: () => _insertFormatting('<color>', '</color>')),
-                _buildToolbarIcon(Icons.link, onTap: () => _insertFormatting('[', '](url)')),
-                _buildToolbarIcon(Icons.text_fields, onTap: () {}),
+                _buildToolbarIcon(LucideIcons.palette, onTap: () => _insertFormatting('<color>', '</color>')),
+                _buildToolbarIcon(LucideIcons.link, onTap: () => _insertFormatting('[', '](url)')),
+                _buildToolbarIcon(LucideIcons.type, onTap: () {}),
               ],
             ),
           ),

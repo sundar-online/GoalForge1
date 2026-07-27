@@ -68,8 +68,10 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
 
       final query = (state is HabitsLoaded) ? (state as HabitsLoaded).searchQuery.toLowerCase() : '';
 
-      // Filter habits scheduled for today or daily
+      // Filter habits scheduled for today (Goal Isolation: exclude goal habits from Tasks page)
       final habitsToday = allHabits.where((habit) {
+        final isStandalone = habit.goalId == null || habit.goalId!.isEmpty || habit.goalId == 'standalone';
+        if (!isStandalone) return false;
         final matchesDay = habit.scheduleDays.isEmpty || habit.scheduleDays.contains(todayWeekday);
         final matchesQuery = query.isEmpty || habit.title.toLowerCase().contains(query);
         return matchesDay && matchesQuery;

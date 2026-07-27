@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'flaticon_icon.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
@@ -15,11 +16,11 @@ class CustomBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final items = [
-      _NavBarItem(flaticonKey: 'home', icon: Icons.home, label: 'HOME'),
-      _NavBarItem(flaticonKey: 'target', icon: Icons.track_changes, label: 'GOALS'),
-      _NavBarItem(flaticonKey: 'calendar', icon: Icons.calendar_today, label: 'TASKS'),
-      _NavBarItem(flaticonKey: 'document', icon: Icons.description, label: 'NOTES'),
-      _NavBarItem(flaticonKey: 'timer', icon: Icons.timer, label: 'FOCUS'),
+      _NavBarItem(flaticonKey: 'home', icon: LucideIcons.layoutDashboard, label: 'HOME'),
+      _NavBarItem(flaticonKey: 'target', icon: LucideIcons.target, label: 'GOALS'),
+      _NavBarItem(flaticonKey: 'calendar', icon: LucideIcons.checkSquare, label: 'TASKS'),
+      _NavBarItem(flaticonKey: 'document', icon: LucideIcons.fileText, label: 'NOTES'),
+      _NavBarItem(flaticonKey: 'timer', icon: LucideIcons.timer, label: 'FOCUS'),
     ];
 
     return Container(

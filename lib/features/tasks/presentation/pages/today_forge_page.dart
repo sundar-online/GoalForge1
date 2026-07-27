@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/domain/models/habit.dart';
 import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/domain/models/task.dart';
@@ -131,9 +132,9 @@ class _TodayForgePageState extends State<TodayForgePage> {
                   borderRadius: BorderRadius.circular(12.0),
                 ),
                 child: const Icon(
-                  Icons.calendar_today_outlined,
+                  LucideIcons.calendar,
                   color: AppColors.primary,
-                  size: 22.0,
+                  size: 20.0,
                 ),
               ),
               const SizedBox(width: 14.0),
@@ -184,7 +185,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.close, color: Color(0xFFEF4444), size: 16.0),
+                      const Icon(LucideIcons.x, color: Color(0xFFEF4444), size: 16.0),
                       const SizedBox(width: 4.0),
                       Text(
                         'Cancel',
@@ -208,7 +209,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.add, color: Colors.white, size: 18.0),
+                      const Icon(LucideIcons.plus, color: Colors.white, size: 18.0),
                       const SizedBox(width: 6.0),
                       Text(
                         'Add Task',
@@ -495,7 +496,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                                 _startDate != null ? AppDateUtils.toLocalYYYYMMDD(_startDate!) : 'Select Start',
                                 style: GoogleFonts.plusJakartaSans(fontSize: 13.0, color: tokens.contentSecondary),
                               ),
-                              Icon(Icons.calendar_today_rounded, size: 16.0, color: tokens.iconSubtle),
+                              Icon(LucideIcons.calendar, size: 16.0, color: tokens.iconSubtle),
                             ],
                           ),
                         ),
@@ -535,7 +536,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                                 _endDate != null ? AppDateUtils.toLocalYYYYMMDD(_endDate!) : 'Select End',
                                 style: GoogleFonts.plusJakartaSans(fontSize: 13.0, color: tokens.contentSecondary),
                               ),
-                              Icon(Icons.calendar_today_rounded, size: 16.0, color: tokens.iconSubtle),
+                              Icon(LucideIcons.calendar, size: 16.0, color: tokens.iconSubtle),
                             ],
                           ),
                         ),
@@ -554,11 +555,11 @@ class _TodayForgePageState extends State<TodayForgePage> {
           const SizedBox(height: 8.0),
           Row(
             children: [
-              Expanded(child: _buildTypeChip('Checkbox', 'check', Icons.check_box_outlined, tokens)),
+              Expanded(child: _buildTypeChip('Checkbox', 'check', LucideIcons.checkSquare, tokens)),
               const SizedBox(width: 8.0),
-              Expanded(child: _buildTypeChip('Time-Based', 'time', Icons.access_time_rounded, tokens)),
+              Expanded(child: _buildTypeChip('Time-Based', 'time', LucideIcons.clock, tokens)),
               const SizedBox(width: 8.0),
-              Expanded(child: _buildTypeChip('Count-Based', 'count', Icons.numbers_rounded, tokens)),
+              Expanded(child: _buildTypeChip('Count-Based', 'count', LucideIcons.binary, tokens)),
             ],
           ),
 
@@ -667,7 +668,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                               borderRadius: BorderRadius.circular(10.0),
                             ),
                             child: const Icon(
-                              Icons.access_time_filled,
+                              LucideIcons.clock,
                               color: AppColors.primary,
                               size: 18.0,
                             ),
@@ -716,7 +717,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.alarm_on_rounded, size: 18.0, color: AppColors.primary),
+                          const Icon(LucideIcons.bell, size: 18.0, color: AppColors.primary),
                           const SizedBox(width: 8.0),
                           Text(
                             'NOTIFICATION TIME:',
@@ -758,7 +759,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                                 ),
                               ),
                               const SizedBox(width: 6.0),
-                              const Icon(Icons.edit_outlined, size: 14.0, color: AppColors.primary),
+                              const Icon(LucideIcons.edit3, size: 14.0, color: AppColors.primary),
                             ],
                           ),
                         ),
@@ -908,7 +909,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
       ),
       child: Row(
         children: [
-          Icon(Icons.search, color: tokens.iconSubtle, size: 20.0),
+          Icon(LucideIcons.search, color: tokens.iconSubtle, size: 20.0),
           const SizedBox(width: 10.0),
           Expanded(
             child: TextField(
@@ -955,7 +956,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.check_circle_outline, size: 48.0, color: tokens.iconSubtle),
+              Icon(LucideIcons.checkCircle2, size: 48.0, color: tokens.iconSubtle),
               const SizedBox(height: 12.0),
               Text(
                 'No Tasks Scheduled Today',
@@ -1037,7 +1038,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.schedule_rounded, size: 10.0, color: AppColors.primary),
+          const Icon(LucideIcons.clock, size: 10.0, color: AppColors.primary),
           const SizedBox(width: 4.0),
           Text(
             label,
@@ -1081,7 +1082,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.flag_rounded, size: 10.0, color: fg),
+          Icon(LucideIcons.flag, size: 10.0, color: fg),
           const SizedBox(width: 3.0),
           Text(
             '${priority.toUpperCase()} PRIORITY',
@@ -1106,7 +1107,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(Icons.calendar_today_outlined, size: 11.0, color: tokens.iconSubtle),
+        Icon(LucideIcons.calendar, size: 11.0, color: tokens.iconSubtle),
         const SizedBox(width: 3.0),
         Text(
           'Started: ',
@@ -1125,7 +1126,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
           ),
         ),
         const SizedBox(width: 8.0),
-        Icon(Icons.access_time_rounded, size: 11.0, color: tokens.iconSubtle),
+        Icon(LucideIcons.clock, size: 11.0, color: tokens.iconSubtle),
         const SizedBox(width: 3.0),
         Text(
           'Active: ',
@@ -1181,7 +1182,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                   color: const Color(0xFF00D9A5),
                   borderRadius: BorderRadius.circular(10.0),
                 ),
-                child: const Icon(Icons.check, color: Colors.white, size: 20.0),
+                child: const Icon(LucideIcons.check, color: Colors.white, size: 20.0),
               ),
             ),
             const SizedBox(width: 14.0),
@@ -1246,7 +1247,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.delete_outline, color: tokens.borderStrong, size: 20.0),
+              icon: Icon(LucideIcons.trash2, color: tokens.borderStrong, size: 20.0),
               onPressed: () {
                 context.read<HabitsBloc>().add(DeleteHabitEvent(goalId: habit.goalId, habitId: habit.id));
               },
@@ -1337,7 +1338,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
             ),
           ),
           IconButton(
-            icon: Icon(Icons.delete_outline, color: tokens.borderStrong, size: 20.0),
+            icon: Icon(LucideIcons.trash2, color: tokens.borderStrong, size: 20.0),
             onPressed: () {
               context.read<HabitsBloc>().add(DeleteHabitEvent(goalId: habit.goalId, habitId: habit.id));
             },
@@ -1381,7 +1382,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                   color: const Color(0xFF00D9A5),
                   borderRadius: BorderRadius.circular(10.0),
                 ),
-                child: const Icon(Icons.check, color: Colors.white, size: 20.0),
+                child: const Icon(LucideIcons.check, color: Colors.white, size: 20.0),
               ),
             ),
             const SizedBox(width: 14.0),
@@ -1422,7 +1423,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.delete_outline, color: tokens.borderStrong, size: 20.0),
+              icon: Icon(LucideIcons.trash2, color: tokens.borderStrong, size: 20.0),
               onPressed: () {
                 context.read<TasksBloc>().add(DeleteTaskEvent(task.id));
               },
@@ -1489,7 +1490,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
             ),
           ),
           IconButton(
-            icon: Icon(Icons.delete_outline, color: tokens.borderStrong, size: 20.0),
+            icon: Icon(LucideIcons.trash2, color: tokens.borderStrong, size: 20.0),
             onPressed: () {
               context.read<TasksBloc>().add(DeleteTaskEvent(task.id));
             },

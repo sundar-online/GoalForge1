@@ -50,7 +50,7 @@ dependencies:
   path_provider: ^2.1.2
   idb_shim: ^2.9.6+2
   flutter_svg: ^2.0.10+1
-
+  lucide_icons_flutter: ^3.1.15
 dev_dependencies:
   flutter_test:
     sdk: flutter

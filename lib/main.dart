@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'core/di/injection_container.dart';
 import 'core/lifecycle/lifecycle_watcher.dart';
 import 'core/router/app_router.dart';
@@ -96,7 +97,7 @@ class AuthGate extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.track_changes,
+                  LucideIcons.target,
                   color: AppColors.primary,
                   size: 64.0,
                 ),

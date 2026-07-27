@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 
 class DesktopSidebarItem {
@@ -31,11 +32,11 @@ class DesktopSidebar extends StatefulWidget {
   });
 
   static const List<DesktopSidebarItem> items = [
-    DesktopSidebarItem(title: 'Home', icon: Icons.home_rounded),
-    DesktopSidebarItem(title: 'Goals', icon: Icons.track_changes_rounded),
-    DesktopSidebarItem(title: 'Tasks', icon: Icons.task_alt_rounded),
-    DesktopSidebarItem(title: 'Notes', icon: Icons.description_outlined),
-    DesktopSidebarItem(title: 'Focus', icon: Icons.timer_outlined),
+    DesktopSidebarItem(title: 'Home', icon: LucideIcons.layoutDashboard),
+    DesktopSidebarItem(title: 'Goals', icon: LucideIcons.target),
+    DesktopSidebarItem(title: 'Tasks', icon: LucideIcons.checkSquare),
+    DesktopSidebarItem(title: 'Notes', icon: LucideIcons.fileText),
+    DesktopSidebarItem(title: 'Focus', icon: LucideIcons.timer),
   ];
 
   @override
@@ -82,9 +83,9 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   child: const Icon(
-                    Icons.track_changes,
+                    LucideIcons.target,
                     color: Colors.white,
-                    size: 22.0,
+                    size: 20.0,
                   ),
                 ),
                 if (!widget.isCollapsed) ...[
@@ -304,8 +305,8 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                   children: [
                     Icon(
                       widget.isCollapsed
-                          ? Icons.chevron_right_rounded
-                          : Icons.chevron_left_rounded,
+                          ? LucideIcons.chevronRight
+                          : LucideIcons.chevronLeft,
                       size: 20.0,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
@@ -67,7 +68,7 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
                     color: theme.colorScheme.outline,
                   ),
                   prefixIcon: Icon(
-                    Icons.search_rounded,
+                    LucideIcons.search,
                     size: 18.0,
                     color: theme.colorScheme.outline,
                   ),
@@ -92,7 +93,7 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
                 message: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
                 child: IconButton(
                   icon: Icon(
-                    isDarkMode ? Icons.wb_sunny_rounded : Icons.nightlight_round,
+                    isDarkMode ? LucideIcons.sun : LucideIcons.moon,
                     size: 20.0,
                   ),
                   onPressed: () {
@@ -108,7 +109,7 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
           Tooltip(
             message: 'Notifications',
             child: IconButton(
-              icon: const Icon(Icons.notifications_none_rounded, size: 22.0),
+              icon: const Icon(LucideIcons.bell, size: 20.0),
               onPressed: () {},
             ),
           ),
@@ -135,7 +136,7 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
                 value: 'profile',
                 child: Row(
                   children: [
-                    Icon(Icons.person_outline, size: 18.0),
+                    Icon(LucideIcons.user, size: 18.0),
                     SizedBox(width: 10.0),
                     Text('User Profile'),
                   ],
@@ -145,7 +146,7 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout_rounded, size: 18.0, color: Colors.redAccent),
+                    Icon(LucideIcons.logOut, size: 18.0, color: Colors.redAccent),
                     SizedBox(width: 10.0),
                     Text('Sign Out', style: TextStyle(color: Colors.redAccent)),
                   ],
@@ -158,15 +159,15 @@ class DesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
                   radius: 18.0,
                   backgroundColor: AppColors.primary.withValues(alpha: 0.2),
                   child: const Icon(
-                    Icons.person_rounded,
-                    size: 20.0,
+                    LucideIcons.user,
+                    size: 18.0,
                     color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: 8.0),
                 Icon(
-                  Icons.arrow_drop_down_rounded,
-                  size: 20.0,
+                  LucideIcons.chevronDown,
+                  size: 18.0,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ],

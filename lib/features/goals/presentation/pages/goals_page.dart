@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/domain/models/goal.dart';
 import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/domain/models/habit.dart';
@@ -36,9 +37,17 @@ class _GoalsPageState extends State<GoalsPage> {
   bool _isFormExpanded = false;
   bool _showAdvancedSettings = true;
   final Set<String> _expandedGoalIds = {};
+  bool _hasInitializedExpanded = false;
   bool _isFocusGoal = false;
   String _selectedMode = 'ANY'; // 'ALL', 'ANY', 'CUSTOM'
   bool _isReorderMode = false;
+
+  // Inline Habit Builder State
+  String? _inlineAddingHabitGoalId;
+  final TextEditingController _inlineHabitTitleController = TextEditingController();
+  final TextEditingController _inlineHabitTargetController = TextEditingController(text: '15');
+  String _inlineHabitType = 'time';
+  final List<String> _inlineScheduleDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   // Overlay state for modals
   Goal? _editingGoal;
@@ -67,6 +76,8 @@ class _GoalsPageState extends State<GoalsPage> {
     _categoryController.dispose();
     _orderController.dispose();
     _dateController.dispose();
+    _inlineHabitTitleController.dispose();
+    _inlineHabitTargetController.dispose();
     for (final habit in _stagedHabits) {
       habit.controller.dispose();
     }
@@ -271,20 +282,20 @@ class _GoalsPageState extends State<GoalsPage> {
           ),
           Row(
             children: [
-              // Reorder toggle
+              // 1. Reorder toggle (6-dots grip icon)
               GestureDetector(
                 onTap: () => setState(() => _isReorderMode = !_isReorderMode),
                 child: Padding(
                   padding: const EdgeInsets.all(6.0),
                   child: Icon(
-                    Icons.drag_indicator_rounded,
+                    LucideIcons.gripVertical,
                     color: _isReorderMode ? AppColors.primary : Colors.white54,
                     size: 18.0,
                   ),
                 ),
               ),
               const SizedBox(width: 4.0),
-              // Expand all
+              // 2. Expand all goals
               GestureDetector(
                 onTap: () {
                   final goals = _latestState?.goals ?? [];
@@ -296,16 +307,16 @@ class _GoalsPageState extends State<GoalsPage> {
                 },
                 child: const Padding(
                   padding: EdgeInsets.all(6.0),
-                  child: Icon(Icons.open_in_full_rounded, color: Colors.white54, size: 16.0),
+                  child: Icon(LucideIcons.maximize2, color: Colors.white54, size: 16.0),
                 ),
               ),
               const SizedBox(width: 4.0),
-              // Collapse all
+              // 3. Collapse all goals
               GestureDetector(
                 onTap: () => setState(() => _expandedGoalIds.clear()),
                 child: const Padding(
                   padding: EdgeInsets.all(6.0),
-                  child: Icon(Icons.close_fullscreen_rounded, color: Colors.white54, size: 16.0),
+                  child: Icon(LucideIcons.minimize2, color: Colors.white54, size: 16.0),
                 ),
               ),
             ],
@@ -467,10 +478,33 @@ class _GoalsPageState extends State<GoalsPage> {
 
     // Filter by active pool (Active Targets vs Missing Dreams)
     final activeTab = _latestState?.activeTab ?? 'ACTIVE';
+    final todayStr = AppDateUtils.getTodayString();
+
+    bool isGoalCompleted(Goal g) {
+      if (g.progress >= 100.0) return true;
+      final gHabits = habitsMap[g.id] ?? [];
+      final dailyProgress = _calculateDailyProgress(g, gHabits, todayStr);
+      return dailyProgress >= 100.0 && gHabits.isNotEmpty;
+    }
+
     final filteredGoals = goals.where((g) {
       return activeTab == 'MISSING' ? g.isMissingDream : !g.isMissingDream;
-    }).toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+    }).toList();
+
+    // Completed goals come LAST; active goals sort by execution order
+    filteredGoals.sort((a, b) {
+      final aDone = isGoalCompleted(a);
+      final bDone = isGoalCompleted(b);
+      if (aDone != bDone) {
+        return aDone ? 1 : -1;
+      }
+      return a.order.compareTo(b.order);
+    });
+
+    if (!_hasInitializedExpanded && filteredGoals.isNotEmpty) {
+      _hasInitializedExpanded = true;
+      _expandedGoalIds.addAll(filteredGoals.take(2).map((g) => g.id));
+    }
 
     if (filteredGoals.isEmpty && goals.isNotEmpty) {
       // Pool is empty but other pool has goals
@@ -690,39 +724,46 @@ class _GoalsPageState extends State<GoalsPage> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Star (Focus)
+                        // Star (Focus - Solid Filled Gold Star when focus goal)
                         _cardIconBtn(
-                          icon: goal.isFocusGoal ? Icons.star_rounded : Icons.star_outline_rounded,
+                          icon: goal.isFocusGoal ? Icons.star : LucideIcons.star,
                           color: goal.isFocusGoal ? Colors.amber : const Color(0xFF94A3B8),
+                          size: 16.0,
                           onTap: () => context.read<GoalsBloc>().add(ToggleFocusGoalEvent(goal.id)),
                         ),
                         // Moon (Missing Dream toggle)
                         _cardIconBtn(
-                          icon: goal.isMissingDream ? Icons.nightlight_round : Icons.nightlight_round_outlined,
+                          icon: LucideIcons.moon,
                           color: goal.isMissingDream ? const Color(0xFFBF5AF2) : const Color(0xFF94A3B8),
+                          size: 16.0,
                           onTap: () => context.read<GoalsBloc>().add(ToggleMissingDreamEvent(goal.id)),
                         ),
                         // Edit
                         _cardIconBtn(
-                          icon: Icons.edit_outlined,
+                          icon: LucideIcons.edit3,
                           color: const Color(0xFF94A3B8),
-                          onTap: () => setState(() => _editingGoal = goal),
+                          size: 16.0,
+                          onTap: () => _openEditGoalModal(goal, habits),
                         ),
                         // Delete
                         _cardIconBtn(
-                          icon: Icons.delete_outline,
+                          icon: LucideIcons.trash2,
                           color: const Color(0xFF94A3B8),
+                          size: 16.0,
                           onTap: () => setState(() => _deletingGoal = goal),
                         ),
                         // Expand chevron
                         _cardIconBtn(
-                          icon: isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          icon: isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
                           color: const Color(0xFF94A3B8),
-                          size: 22.0,
+                          size: 18.0,
                           onTap: () => setState(() {
                             if (isExpanded) {
                               _expandedGoalIds.remove(goal.id);
                             } else {
+                              if (_expandedGoalIds.length >= 2) {
+                                _expandedGoalIds.remove(_expandedGoalIds.first);
+                              }
                               _expandedGoalIds.add(goal.id);
                             }
                           }),
@@ -822,48 +863,51 @@ class _GoalsPageState extends State<GoalsPage> {
                 ),
                 const SizedBox(height: 16.0),
 
-                // Bottom Meta Chips Row (Matching Reference Screenshot)
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  spacing: 8.0,
-                  runSpacing: 6.0,
-                  children: [
-                    // Clickable Deadline Chip
-                    GestureDetector(
-                      onTap: () => setState(() => _extendingGoal = goal),
-                      child: _buildMetaPill(
-                        '🗓️',
-                        goal.deadline != null ? _formatDeadline(goal.deadline!) : 'No Deadline',
-                        clickable: true,
-                      ),
-                    ),
-                    // Duration counter
-                    _buildMetaPill(
-                      '🔥',
-                      '$completedDays/$daysSinceCreation',
-                    ),
-                    // Habits ratio
-                    _buildMetaPill(
-                      '📋',
-                      '$completedHabitsCount/${habits.length}',
-                    ),
-                    if (isGoalDone)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE6FBF5),
-                          borderRadius: BorderRadius.circular(7.0),
+                // Bottom Meta Chips Row (Centered)
+                Center(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8.0,
+                    runSpacing: 6.0,
+                    children: [
+                      // Clickable Deadline Chip
+                      GestureDetector(
+                        onTap: () => setState(() => _extendingGoal = goal),
+                        child: _buildMetaPill(
+                          '🗓️',
+                          goal.deadline != null ? _formatDeadline(goal.deadline!) : 'No Deadline',
+                          clickable: true,
                         ),
-                        child: Text(
-                          '✅ DONE',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: const Color(0xFF00A87A),
-                            fontSize: 9.0,
-                            fontWeight: FontWeight.w900,
+                      ),
+                      // Duration counter
+                      _buildMetaPill(
+                        '🔥',
+                        '$completedDays/$daysSinceCreation',
+                      ),
+                      // Habits ratio
+                      _buildMetaPill(
+                        '📋',
+                        '$completedHabitsCount/${habits.length}',
+                      ),
+                      if (isGoalDone)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE6FBF5),
+                            borderRadius: BorderRadius.circular(7.0),
+                          ),
+                          child: Text(
+                            '✅ DONE',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: const Color(0xFF00A87A),
+                              fontSize: 9.0,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -891,35 +935,46 @@ class _GoalsPageState extends State<GoalsPage> {
                   else
                     ...habits.map((habit) => _buildHabitRow(context, goal, habit, todayStr)),
                   const SizedBox(height: 10.0),
-                  // Full-width Add Daily Habit button (Matching Reference Image)
-                  GestureDetector(
-                    onTap: () => _showAddHabitDialog(context, goal.id),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 12.0),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.add, size: 16.0, color: AppColors.primary),
-                            const SizedBox(width: 6.0),
-                            Text(
-                              'Add Daily Habit',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13.0,
+                  if (_inlineAddingHabitGoalId == goal.id)
+                    _buildInlineHabitForm(context, goal)
+                  else
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _inlineAddingHabitGoalId = goal.id;
+                          _inlineHabitTitleController.clear();
+                          _inlineHabitTargetController.text = '15';
+                          _inlineHabitType = 'time';
+                          _inlineScheduleDays.clear();
+                          _inlineScheduleDays.addAll(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+                        });
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12.0),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.add, size: 16.0, color: AppColors.primary),
+                              const SizedBox(width: 6.0),
+                              Text(
+                                'Add Daily Habit',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13.0,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -930,12 +985,285 @@ class _GoalsPageState extends State<GoalsPage> {
     );
   }
 
-  Widget _cardIconBtn({required IconData icon, required Color color, required VoidCallback onTap, double size = 18.0}) {
+  Widget _cardIconBtn({required IconData icon, required Color color, required VoidCallback onTap, double size = 16.0}) {
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.all(4.0),
+        padding: const EdgeInsets.all(3.0),
         child: Icon(icon, color: color, size: size),
+      ),
+    );
+  }
+
+  Widget _buildInlineHabitForm(BuildContext context, Goal goal) {
+    final tokens = AppThemeTokens.of(context);
+    final isDark = tokens.isDark;
+
+    final cardBg = isDark ? const Color(0xFF141722) : const Color(0xFFF8FAFC);
+    final inputBg = isDark ? const Color(0xFF1E2235) : const Color(0xFFFFFFFF);
+    final inputBorder = isDark ? Colors.white24 : const Color(0xFFCBD5E1);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF1E293B);
+    final textSubtle = isDark ? Colors.white54 : const Color(0xFF64748B);
+    final pillInactiveBg = isDark ? const Color(0xFF1E2235) : const Color(0xFFE2E8F0);
+    final pillInactiveText = isDark ? Colors.white : const Color(0xFF475569);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: isDark ? AppColors.primary.withValues(alpha: 0.4) : const Color(0xFFCBD5E1), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? const Color(0x40000000) : const Color(0x0F000000),
+            blurRadius: 16.0,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Habit Title Input Field
+          TextField(
+            controller: _inlineHabitTitleController,
+            autofocus: true,
+            style: GoogleFonts.plusJakartaSans(
+              color: textPrimary,
+              fontSize: 14.0,
+              fontWeight: FontWeight.w700,
+            ),
+            decoration: InputDecoration(
+              hintText: 'New habit name...',
+              hintStyle: GoogleFonts.plusJakartaSans(
+                color: textSubtle,
+                fontSize: 14.0,
+                fontWeight: FontWeight.w600,
+              ),
+              filled: true,
+              fillColor: inputBg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10.0),
+                borderSide: BorderSide(color: inputBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10.0),
+                borderSide: BorderSide(color: inputBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10.0),
+                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+            ),
+          ),
+          const SizedBox(height: 14.0),
+
+          // 2. Type Dropdown & Target Value Input Row
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 2.0),
+                  decoration: BoxDecoration(
+                    color: inputBg,
+                    borderRadius: BorderRadius.circular(10.0),
+                    border: Border.all(color: inputBorder),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _inlineHabitType,
+                      dropdownColor: inputBg,
+                      isExpanded: true,
+                      style: GoogleFonts.plusJakartaSans(color: textPrimary, fontWeight: FontWeight.w700, fontSize: 12.5),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'time',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.timer_outlined, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 6),
+                              Text('Time-Based', style: GoogleFonts.plusJakartaSans(color: textPrimary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                            ],
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'count',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.tag, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 6),
+                              Text('Count-Based', style: GoogleFonts.plusJakartaSans(color: textPrimary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                            ],
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'check',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle_outline, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 6),
+                              Text('Checkmark', style: GoogleFonts.plusJakartaSans(color: textPrimary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                            ],
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _inlineHabitType = val;
+                            if (val == 'time') {
+                              _inlineHabitTargetController.text = '15';
+                            } else if (val == 'count') {
+                              _inlineHabitTargetController.text = '1';
+                            }
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10.0),
+              if (_inlineHabitType == 'time' || _inlineHabitType == 'count')
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 2.0),
+                    decoration: BoxDecoration(
+                      color: inputBg,
+                      borderRadius: BorderRadius.circular(10.0),
+                      border: Border.all(color: inputBorder),
+                    ),
+                    child: TextField(
+                      controller: _inlineHabitTargetController,
+                      keyboardType: TextInputType.number,
+                      style: GoogleFonts.plusJakartaSans(color: textPrimary, fontSize: 12.5, fontWeight: FontWeight.w800),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        filled: true,
+                        fillColor: Colors.transparent,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 10.0),
+                        suffixText: _inlineHabitType == 'time' ? 'MINS' : 'TIMES',
+                        suffixStyle: GoogleFonts.plusJakartaSans(color: textSubtle, fontSize: 10.0, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14.0),
+
+          // 3. Schedule Days Section
+          Text(
+            'SCHEDULE',
+            style: GoogleFonts.plusJakartaSans(
+              color: textSubtle,
+              fontSize: 10.0,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 8.0),
+          Wrap(
+            spacing: 6.0,
+            runSpacing: 6.0,
+            children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
+              final isSelected = _inlineScheduleDays.contains(day);
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isSelected) {
+                      if (_inlineScheduleDays.length > 1) {
+                        _inlineScheduleDays.remove(day);
+                      }
+                    } else {
+                      _inlineScheduleDays.add(day);
+                    }
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primary : pillInactiveBg,
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(color: isSelected ? AppColors.primary : inputBorder),
+                  ),
+                  child: Text(
+                    day,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: isSelected ? Colors.white : pillInactiveText,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16.0),
+
+          // 4. Action Buttons Row (Add Daily Habit + Cancel)
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    final rawTitle = _inlineHabitTitleController.text.trim();
+                    final title = rawTitle.isEmpty ? 'Daily Habit' : rawTitle;
+                    final parsedVal = int.tryParse(_inlineHabitTargetController.text.trim()) ?? (_inlineHabitType == 'time' ? 15 : 1);
+                    final newHabit = Habit(
+                      id: UuidGenerator.generate(),
+                      goalId: goal.id,
+                      title: title,
+                      type: _inlineHabitType,
+                      targetTime: _inlineHabitType == 'time' ? parsedVal : 15,
+                      targetCount: _inlineHabitType == 'count' ? parsedVal : 1,
+                      scheduleDays: List<String>.from(_inlineScheduleDays),
+                      reminderEnabled: false,
+                      completedDates: const [],
+                      createdAt: DateTime.now().toIso8601String(),
+                    );
+                    context.read<HabitsBloc>().add(CreateStandAloneHabitEvent(newHabit));
+                    context.read<GoalsBloc>().add(LoadGoalsEvent());
+                    setState(() {
+                      _inlineAddingHabitGoalId = null;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Add Daily Habit',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 13.0),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10.0),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _inlineAddingHabitGoalId = null;
+                  });
+                },
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.plusJakartaSans(color: textSubtle, fontWeight: FontWeight.w700, fontSize: 13.0),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1752,100 +2080,115 @@ class _GoalsPageState extends State<GoalsPage> {
                   ),
                   const SizedBox(height: 16.0),
 
-                  // Row 2: Target Date
-                  Column(
+                  // Row 2: Category (Required) & Execution Order (Required)
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLabel('TARGET DATE (OPTIONAL)'),
-                      const SizedBox(height: 6.0),
-                      _buildDateField(_dateController, 'dd-mm-yyyy'),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('CATEGORY (REQUIRED)'),
+                            const SizedBox(height: 6.0),
+                            _buildInputField(_categoryController, 'e.g. Learning, Health, Career', false),
+                            const SizedBox(height: 8.0),
+                            Wrap(
+                              spacing: 6.0,
+                              runSpacing: 6.0,
+                              children: ['LEARNING', 'HEALTH', 'CAREER', 'FINANCE', 'PERSONAL', 'GENERAL'].map((cat) {
+                                final isSelected = _categoryController.text.trim().toUpperCase() == cat;
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _categoryController.text = cat;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? AppColors.primary : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(8.0),
+                                      border: Border.all(color: isSelected ? AppColors.primary : theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                                    ),
+                                    child: Text(
+                                      cat,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10.0,
+                                        fontWeight: FontWeight.w800,
+                                        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16.0),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('EXECUTION ORDER (REQUIRED)'),
+                            const SizedBox(height: 6.0),
+                            _buildInputField(_orderController, '1 = Highest Priority', false, isNumber: true),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16.0),
 
-                  // Advanced Settings Toggle
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _showAdvancedSettings = !_showAdvancedSettings;
-                      });
-                    },
-                    child: Row(
-                      children: [
-                        const Icon(Icons.settings_outlined, size: 14.0, color: AppColors.primary),
-                        const SizedBox(width: 6.0),
-                        Text(
-                          'Advanced Settings',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12.0,
+                  // Row 3: Target Date (Optional) & Focus Goal Checkbox
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('TARGET DATE (OPTIONAL)'),
+                            const SizedBox(height: 6.0),
+                            _buildDateField(_dateController, 'dd-mm-yyyy'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16.0),
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 14.0),
+                          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(12.0),
+                            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                          ),
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: _isFocusGoal,
+                                activeColor: AppColors.primary,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _isFocusGoal = val ?? false;
+                                  });
+                                },
+                              ),
+                              Text(
+                                'Set as Focus Goal',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16.0),
-
-                  if (_showAdvancedSettings) ...[
-                    // Row 3: Category & Execution Order
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('CATEGORY'),
-                              const SizedBox(height: 6.0),
-                              _buildInputField(_categoryController, 'General', false),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16.0),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('EXECUTION ORDER'),
-                              const SizedBox(height: 6.0),
-                              _buildInputField(_orderController, '1', false, isNumber: true),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16.0),
-
-                    // Checkbox: Set as Focus Goal
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: _isFocusGoal,
-                            activeColor: AppColors.primary,
-                            onChanged: (val) {
-                              setState(() {
-                                _isFocusGoal = val ?? false;
-                              });
-                            },
-                          ),
-                          Text(
-                            'Set as Focus Goal',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16.0),
-
-                  ],
 
                   // Row 5: Strategy Logic Segment Switcher
                   Column(
@@ -1952,6 +2295,11 @@ class _GoalsPageState extends State<GoalsPage> {
                                         if (val != null) {
                                           setState(() {
                                             habit.type = val;
+                                            if (val == 'time') {
+                                              habit.targetValueController.text = habit.targetTime.toString();
+                                            } else if (val == 'count') {
+                                              habit.targetValueController.text = habit.targetCount.toString();
+                                            }
                                           });
                                         }
                                       },
@@ -1960,69 +2308,38 @@ class _GoalsPageState extends State<GoalsPage> {
                                 ),
                               ),
                               const SizedBox(width: 8.0),
-                              if (habit.type == 'time')
+                              if (habit.type == 'time' || habit.type == 'count')
                                 Container(
-                                  width: 130.0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                                  width: 120.0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
                                   decoration: BoxDecoration(
                                     color: theme.colorScheme.surface,
                                     borderRadius: BorderRadius.circular(10.0),
                                     border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
                                   ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<int>(
-                                      value: habit.targetTime,
-                                      isExpanded: true,
-                                      items: [
-                                        5, 10, 15, 20, 25, 30, 45, 60, 90, 120,
-                                        if (![5, 10, 15, 20, 25, 30, 45, 60, 90, 120].contains(habit.targetTime)) habit.targetTime
-                                      ].toSet().map((val) => DropdownMenuItem(
-                                        value: val,
-                                        child: Text(
-                                          '$val MINS',
-                                          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
-                                        ),
-                                      )).toList(),
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() {
-                                            habit.targetTime = val;
-                                          });
+                                  child: TextField(
+                                    controller: habit.targetValueController,
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (val) {
+                                      final parsed = int.tryParse(val.trim());
+                                      if (parsed != null && parsed > 0) {
+                                        if (habit.type == 'time') {
+                                          habit.targetTime = parsed;
+                                        } else {
+                                          habit.targetCount = parsed;
                                         }
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              if (habit.type == 'count')
-                                Container(
-                                  width: 130.0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(10.0),
-                                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                                  ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<int>(
-                                      value: habit.targetCount,
-                                      isExpanded: true,
-                                      items: [
-                                        1, 2, 3, 5, 8, 10, 12, 15, 20, 25, 50, 100,
-                                        if (![1, 2, 3, 5, 8, 10, 12, 15, 20, 25, 50, 100].contains(habit.targetCount)) habit.targetCount
-                                      ].toSet().map((val) => DropdownMenuItem(
-                                        value: val,
-                                        child: Text(
-                                          '$val ${val == 1 ? "TIME" : "TIMES"}',
-                                          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
-                                        ),
-                                      )).toList(),
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() {
-                                            habit.targetCount = val;
-                                          });
-                                        }
-                                      },
+                                      }
+                                    },
+                                    style: GoogleFonts.plusJakartaSans(fontSize: 12.0, fontWeight: FontWeight.w700),
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      border: InputBorder.none,
+                                      suffixText: habit.type == 'time' ? 'MINS' : 'TIMES',
+                                      suffixStyle: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10.0,
+                                        fontWeight: FontWeight.w800,
+                                        color: theme.colorScheme.onSurfaceVariant,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2072,47 +2389,6 @@ class _GoalsPageState extends State<GoalsPage> {
                                 ),
                               );
                             }).toList(),
-                          ),
-                          const SizedBox(height: 8.0),
-                          Row(
-                            children: [
-                              const Icon(Icons.calendar_today_outlined, size: 12.0, color: Color(0xFF8C97AB)),
-                              const SizedBox(width: 4.0),
-                              Text(
-                                'Active every day',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: const Color(0xFF8C97AB),
-                                  fontSize: 10.0,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12.0),
-
-                          // Daily Reminder Box
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface,
-                              borderRadius: BorderRadius.circular(10.0),
-                              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.alarm_outlined, size: 14.0, color: Color(0xFF8C97AB)),
-                                const SizedBox(width: 8.0),
-                                Text(
-                                  'DAILY REMINDER',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: const Color(0xFF8C97AB),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 9.0,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         ],
                       ),
@@ -2288,9 +2564,8 @@ class _GoalsPageState extends State<GoalsPage> {
 
   void _showAddHabitDialog(BuildContext context, String goalId) {
     final titleController = TextEditingController();
+    final targetValController = TextEditingController(text: '15');
     String selectedType = 'time';
-    int targetTime = 15;
-    int targetCount = 1;
     List<String> scheduleDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     showDialog(
@@ -2341,41 +2616,35 @@ class _GoalsPageState extends State<GoalsPage> {
                                 DropdownMenuItem(value: 'check', child: Text('Checkmark')),
                               ],
                               onChanged: (val) {
-                                if (val != null) setDialogState(() => selectedType = val);
+                                if (val != null) {
+                                  setDialogState(() {
+                                    selectedType = val;
+                                    if (val == 'time') {
+                                      targetValController.text = '15';
+                                    } else if (val == 'count') {
+                                      targetValController.text = '1';
+                                    }
+                                  });
+                                }
                               },
                             ),
                           ),
                           const SizedBox(width: 10.0),
-                          if (selectedType == 'time')
+                          if (selectedType == 'time' || selectedType == 'count')
                             Expanded(
-                              child: DropdownButtonFormField<int>(
-                                initialValue: targetTime,
-                                decoration: const InputDecoration(labelText: 'Duration'),
-                                items: const [
-                                  DropdownMenuItem(value: 15, child: Text('15 MINS')),
-                                  DropdownMenuItem(value: 30, child: Text('30 MINS')),
-                                  DropdownMenuItem(value: 45, child: Text('45 MINS')),
-                                  DropdownMenuItem(value: 60, child: Text('60 MINS')),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) setDialogState(() => targetTime = val);
-                                },
-                              ),
-                            ),
-                          if (selectedType == 'count')
-                            Expanded(
-                              child: DropdownButtonFormField<int>(
-                                initialValue: targetCount,
-                                decoration: const InputDecoration(labelText: 'Count'),
-                                items: const [
-                                  DropdownMenuItem(value: 1, child: Text('1 TIME')),
-                                  DropdownMenuItem(value: 2, child: Text('2 TIMES')),
-                                  DropdownMenuItem(value: 3, child: Text('3 TIMES')),
-                                  DropdownMenuItem(value: 5, child: Text('5 TIMES')),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) setDialogState(() => targetCount = val);
-                                },
+                              child: TextField(
+                                controller: targetValController,
+                                keyboardType: TextInputType.number,
+                                style: GoogleFonts.plusJakartaSans(fontSize: 13.0, fontWeight: FontWeight.w700),
+                                decoration: InputDecoration(
+                                  labelText: selectedType == 'time' ? 'Target (Mins)' : 'Target (Count)',
+                                  filled: true,
+                                  fillColor: const Color(0xFFF0F3F8),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
                               ),
                             ),
                         ],
@@ -2393,13 +2662,14 @@ class _GoalsPageState extends State<GoalsPage> {
                   onPressed: () {
                     final title = titleController.text.trim();
                     if (title.isEmpty) return;
+                    final parsedVal = int.tryParse(targetValController.text.trim()) ?? (selectedType == 'time' ? 15 : 1);
                     final newHabit = Habit(
                       id: UuidGenerator.generate(),
                       goalId: goalId,
                       title: title,
                       type: selectedType,
-                      targetTime: targetTime,
-                      targetCount: targetCount,
+                      targetTime: selectedType == 'time' ? parsedVal : 15,
+                      targetCount: selectedType == 'count' ? parsedVal : 1,
                       scheduleDays: scheduleDays,
                       reminderEnabled: false,
                       completedDates: const [],
@@ -2422,77 +2692,194 @@ class _GoalsPageState extends State<GoalsPage> {
     );
   }
 
+  void _openEditGoalModal(Goal goal, List<Habit> habits) {
+    _nameController.text = goal.title;
+    _purposeController.text = goal.description ?? '';
+    _categoryController.text = goal.tag ?? 'GENERAL';
+    _orderController.text = goal.order.toString();
+    _dateController.text = goal.deadline ?? '';
+    _selectedMode = goal.mode;
+    _isFocusGoal = goal.isFocusGoal;
+    _editingGoal = goal;
+
+    _stagedHabits.clear();
+    if (habits.isEmpty) {
+      _stagedHabits.add(_StagedHabit(
+        title: 'Daily Habit',
+        type: 'time',
+        targetTime: 30,
+        targetCount: 1,
+        scheduleDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      ));
+    } else {
+      for (var habit in habits) {
+        _stagedHabits.add(_StagedHabit(
+          id: habit.id,
+          title: habit.title,
+          type: habit.type,
+          targetTime: habit.targetTime,
+          targetCount: habit.targetCount,
+          scheduleDays: List<String>.from(habit.scheduleDays),
+        ));
+      }
+    }
+
+    setState(() {
+      _isFormExpanded = true;
+    });
+  }
+
   void _forgeGoalSystem(BuildContext context) {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a goal name.')),
+        const SnackBar(
+          content: Text('Please enter a goal name.'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
 
-    final goalId = UuidGenerator.generate();
+    final orderText = _orderController.text.trim();
+    final order = int.tryParse(orderText) ?? 1;
+
+    // Validation: Check duplicate execution order among active goals
+    final existingGoals = _latestState?.goals ?? [];
+    final isDuplicateOrder = existingGoals.any((g) {
+      if (_editingGoal != null && g.id == _editingGoal!.id) return false;
+      return g.order == order && !g.isMissingDream;
+    });
+
+    if (isDuplicateOrder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Execution Order $order is already assigned to another active goal. Please choose a unique order.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
+    final isEditing = _editingGoal != null;
+    final goalId = isEditing ? _editingGoal!.id : UuidGenerator.generate();
     final nowStr = DateTime.now().toIso8601String();
 
-    final newGoal = Goal(
+    final category = _categoryController.text.trim().isEmpty ? 'GENERAL' : _categoryController.text.trim().toUpperCase();
+
+    final newOrUpdatedGoal = Goal(
       id: goalId,
       title: name,
-      description: _purposeController.text.trim(),
+      description: _purposeController.text.trim().isEmpty ? null : _purposeController.text.trim(),
       mode: _selectedMode,
-      tag: _categoryController.text.trim().isEmpty ? 'GENERAL' : _categoryController.text.trim().toUpperCase(),
+      tag: category,
       deadline: _dateController.text.trim().isEmpty ? null : _dateController.text.trim(),
       isFocusGoal: _isFocusGoal,
-      order: int.tryParse(_orderController.text.trim()) ?? 1,
-      completedDates: const [],
-      dependencies: const [],
-      createdAt: nowStr,
+      isMissingDream: isEditing ? _editingGoal!.isMissingDream : false,
+      progress: isEditing ? _editingGoal!.progress : 0.0,
+      streak: isEditing ? _editingGoal!.streak : 0,
+      bestStreak: isEditing ? _editingGoal!.bestStreak : 0,
+      missedDays: isEditing ? _editingGoal!.missedDays : 0,
+      completedDates: isEditing ? _editingGoal!.completedDates : const [],
+      dependencies: isEditing ? _editingGoal!.dependencies : const [],
+      order: order,
+      createdAt: isEditing ? _editingGoal!.createdAt : nowStr,
     );
 
+    final existingHabitsMap = <String, Habit>{};
+    if (isEditing) {
+      final habitsForGoal = _latestState?.habitsByGoalId[goalId] ?? [];
+      for (var h in habitsForGoal) {
+        existingHabitsMap[h.id] = h;
+      }
+    }
+
     final habits = _stagedHabits.map((staged) {
+      final habitId = staged.id ?? UuidGenerator.generate();
+      final existingHabit = existingHabitsMap[habitId];
+
+      final targetVal = staged.parsedTargetValue;
+
       return Habit(
-        id: UuidGenerator.generate(),
+        id: habitId,
         goalId: goalId,
         title: staged.title.isEmpty ? 'Daily Habit' : staged.title,
         type: staged.type,
-        targetTime: staged.targetTime,
-        targetCount: staged.targetCount,
+        targetTime: staged.type == 'time' ? targetVal : staged.targetTime,
+        targetCount: staged.type == 'count' ? targetVal : staged.targetCount,
         scheduleDays: List<String>.from(staged.scheduleDays),
         reminderEnabled: false,
-        completedDates: const [],
-        createdAt: nowStr,
+        completedDates: existingHabit?.completedDates ?? const [],
+        timeSpent: existingHabit?.timeSpent ?? 0,
+        currentCount: existingHabit?.currentCount ?? 0,
+        streak: existingHabit?.streak ?? 0,
+        createdAt: existingHabit?.createdAt ?? nowStr,
       );
     }).toList();
 
-    context.read<GoalsBloc>().add(CreateGoalEvent(goal: newGoal, habits: habits));
+    context.read<GoalsBloc>().add(CreateGoalEvent(goal: newOrUpdatedGoal, habits: habits));
 
+    _resetForm();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isEditing ? 'Goal system updated successfully!' : 'Goal system forged successfully!'),
+      ),
+    );
+  }
+
+  void _resetForm() {
     _nameController.clear();
     _purposeController.clear();
     _dateController.clear();
+    _categoryController.text = 'GENERAL';
+    _orderController.text = '1';
+    for (var h in _stagedHabits) {
+      h.controller.dispose();
+      h.targetValueController.dispose();
+    }
+    _stagedHabits.clear();
+    _stagedHabits.add(_StagedHabit(
+      title: 'Daily Habit',
+      type: 'time',
+      targetTime: 30,
+      targetCount: 1,
+      scheduleDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    ));
     setState(() {
       _isFormExpanded = false;
       _isFocusGoal = false;
+      _editingGoal = null;
+      _selectedMode = 'ALL';
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Goal system forged successfully!')),
-    );
   }
 }
 
 class _StagedHabit {
+  final String? id;
   final TextEditingController controller;
+  final TextEditingController targetValueController;
   String type;
   int targetTime;
   int targetCount;
   List<String> scheduleDays;
 
   _StagedHabit({
+    this.id,
     required String title,
     required this.type,
     required this.targetTime,
     required this.targetCount,
     required this.scheduleDays,
-  }) : controller = TextEditingController(text: title);
+  })  : controller = TextEditingController(text: title),
+        targetValueController = TextEditingController(
+          text: (type == 'time' ? targetTime : (type == 'count' ? targetCount : 1)).toString(),
+        );
 
   String get title => controller.text.trim();
+
+  int get parsedTargetValue {
+    final val = int.tryParse(targetValueController.text.trim());
+    return (val != null && val > 0) ? val : (type == 'time' ? 30 : 1);
+  }
 }

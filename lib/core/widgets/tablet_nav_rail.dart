@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 
 class TabletNavRail extends StatelessWidget {
@@ -28,41 +29,41 @@ class TabletNavRail extends StatelessWidget {
             color: AppColors.primary.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.track_changes, color: AppColors.primary, size: 22.0),
+          child: const Icon(LucideIcons.target, color: AppColors.primary, size: 20.0),
         ),
       ),
-      selectedIconTheme: const IconThemeData(color: AppColors.primary, size: 24.0),
-      unselectedIconTheme: IconThemeData(color: theme.colorScheme.onSurfaceVariant, size: 22.0),
+      selectedIconTheme: const IconThemeData(color: AppColors.primary, size: 22.0),
+      unselectedIconTheme: IconThemeData(color: theme.colorScheme.onSurfaceVariant, size: 20.0),
       selectedLabelTextStyle: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 11.0),
       destinations: const [
         NavigationRailDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard_rounded),
+          icon: Icon(LucideIcons.layoutDashboard),
+          selectedIcon: Icon(LucideIcons.layoutDashboard),
           label: Text('Dashboard'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.track_changes_outlined),
-          selectedIcon: Icon(Icons.track_changes_rounded),
+          icon: Icon(LucideIcons.target),
+          selectedIcon: Icon(LucideIcons.target),
           label: Text('Goals'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.check_circle_outline_rounded),
-          selectedIcon: Icon(Icons.check_circle_rounded),
+          icon: Icon(LucideIcons.checkSquare),
+          selectedIcon: Icon(LucideIcons.checkSquare),
           label: Text('Forge'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.description_outlined),
-          selectedIcon: Icon(Icons.description_rounded),
+          icon: Icon(LucideIcons.fileText),
+          selectedIcon: Icon(LucideIcons.fileText),
           label: Text('Logs'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.timer_outlined),
-          selectedIcon: Icon(Icons.timer_rounded),
+          icon: Icon(LucideIcons.timer),
+          selectedIcon: Icon(LucideIcons.timer),
           label: Text('Focus'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.bar_chart_outlined),
-          selectedIcon: Icon(Icons.bar_chart_rounded),
+          icon: Icon(LucideIcons.barChart2),
+          selectedIcon: Icon(LucideIcons.barChart2),
           label: Text('Analytics'),
         ),
       ],
