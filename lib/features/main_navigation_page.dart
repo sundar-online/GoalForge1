@@ -5,7 +5,6 @@ import '../core/responsive/responsive_layout.dart';
 import '../core/domain/models/goal.dart';
 import '../core/widgets/bottom_nav_bar.dart';
 import '../core/widgets/desktop_sidebar.dart';
-import '../core/widgets/desktop_app_bar.dart';
 import '../core/widgets/tablet_nav_rail.dart';
 import 'dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'dashboard/presentation/bloc/dashboard_event.dart';
@@ -32,30 +31,23 @@ import 'analytics/presentation/bloc/analytics_event.dart';
 import 'analytics/presentation/pages/analytics_page.dart';
 
 class MainNavigationPage extends StatefulWidget {
-  const MainNavigationPage({super.key});
+  final int initialIndex;
+  const MainNavigationPage({super.key, this.initialIndex = 0});
 
   @override
   State<MainNavigationPage> createState() => _MainNavigationPageState();
 }
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   bool _isSidebarCollapsed = false;
 
   late final List<Widget> _pages;
 
-  final List<String> _pageTitles = const [
-    'Dashboard Overview',
-    'Goals System',
-    'Today\'s Forge',
-    'Notes & System Logs',
-    'Deep Focus Session',
-    'Analytics & Performance',
-  ];
-
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
     _pages = [
       const HomePage(),
       const GoalsPage(),

@@ -5,7 +5,6 @@ import '../../../../core/widgets/custom_card.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
-import '../../../main_navigation_page.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -285,22 +284,6 @@ class _AuthPageState extends State<AuthPage> {
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                      const SizedBox(height: 12.0),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (_) => const MainNavigationPage()),
-                          );
-                        },
-                        child: const Text(
-                          'Continue as Guest →',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14.0,
-                          ),
                         ),
                       ),
                     ],

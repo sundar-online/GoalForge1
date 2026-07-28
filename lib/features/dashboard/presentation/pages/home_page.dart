@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/domain/models/goal.dart';
 import '../../../../core/domain/models/quick_thought.dart';
 import '../../../../core/domain/models/scheduled_event.dart';
 import '../../../../core/domain/models/task.dart';
 import '../../../../core/domain/models/xp_profile.dart';
+import '../../../../core/services/gamification_service.dart';
 import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
@@ -15,7 +17,9 @@ import '../../../../core/theme/theme_cubit.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart' as auth;
+import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../events/presentation/bloc/events_bloc.dart';
 import '../../../events/presentation/bloc/events_event.dart';
 import '../../../events/presentation/bloc/events_state.dart';
@@ -211,6 +215,8 @@ class _HomePageState extends State<HomePage> {
                   fontSize: 26,
                   letterSpacing: -0.5,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4.0),
               Text(
@@ -220,6 +226,8 @@ class _HomePageState extends State<HomePage> {
                   fontStyle: FontStyle.italic,
                   fontSize: 13,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -236,21 +244,101 @@ class _HomePageState extends State<HomePage> {
               onTap: () => context.read<ThemeCubit>().toggleTheme(),
             ),
             const SizedBox(width: 8.0),
-            // User Avatar Circle
-            Container(
-              width: 38.0,
-              height: 38.0,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E293B),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  avatarLetter,
-                  style: GoogleFonts.plusJakartaSans(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15.0,
+            // User Avatar Popup Menu
+            PopupMenuButton<String>(
+              tooltip: 'Profile Menu',
+              offset: const Offset(0, 48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: tokens.surfaceElevated,
+              elevation: 8,
+              onSelected: (value) {
+                if (value == 'profile') {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                } else if (value == 'signout') {
+                  context.read<AuthBloc>().add(SignOutRequested());
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  enabled: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        displayName,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: tokens.contentPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        (authState is auth.Authenticated && authState.user.email != null)
+                            ? authState.user.email!
+                            : 'sundar@goalforge.app',
+                        style: TextStyle(
+                          color: tokens.contentSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem<String>(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.award, size: 16, color: tokens.contentPrimary),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Profile & Achievements',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: tokens.contentPrimary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'signout',
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.logOut, size: 16, color: Colors.redAccent),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Sign Out',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              child: Container(
+                width: 38.0,
+                height: 38.0,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1E293B),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    avatarLetter,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15.0,
+                    ),
                   ),
                 ),
               ),
@@ -335,98 +423,119 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 12),
 
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 500;
+
+              final goalInfo = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: tokens.contentPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        dueDateText,
+                        style: TextStyle(color: tokens.contentTertiary, fontSize: 12),
+                      ),
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(color: tokens.contentTertiary, shape: BoxShape.circle),
+                      ),
+                      Text(
+                        activeHabitsText,
+                        style: TextStyle(color: tokens.contentTertiary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Text(
+                        'GOAL MASTERY',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: tokens.contentSecondary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '$progressPct%',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: tokens.contentPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: progressValue,
+                      minHeight: 6,
+                      backgroundColor: tokens.borderDefault,
+                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  ),
+                ],
+              );
+
+              final actionBtn = SizedBox(
+                width: isNarrow ? double.infinity : null,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                  ),
+                  onPressed: () => const TabNavigationNotification(4).dispatch(context), // Focus Tab
+                  icon: Text(
+                    goal != null ? 'Continue Goal' : 'Forge Goal',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                  label: const Icon(LucideIcons.chevronRight, size: 16),
+                ),
+              );
+
+              if (isNarrow) {
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: tokens.contentPrimary,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Text(
-                          dueDateText,
-                          style: TextStyle(color: tokens.contentTertiary, fontSize: 12),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(color: tokens.contentTertiary, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          activeHabitsText,
-                          style: TextStyle(color: tokens.contentTertiary, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                    goalInfo,
                     const SizedBox(height: 16),
-
-                    Row(
-                      children: [
-                        Text(
-                          'GOAL MASTERY',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: tokens.contentSecondary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 10,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '$progressPct%',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: tokens.contentPrimary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: progressValue,
-                        minHeight: 6,
-                        backgroundColor: tokens.borderDefault,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                      ),
-                    ),
+                    actionBtn,
                   ],
-                ),
-              ),
-              const SizedBox(width: 20),
+                );
+              }
 
-              // Continue Goal Button
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-                onPressed: () => TabNavigationNotification(4).dispatch(context), // Focus Tab
-                icon: Text(
-                  goal != null ? 'Continue Goal' : 'Forge Goal',
-                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 13),
-                ),
-                label: const Icon(LucideIcons.chevronRight, size: 16),
-              ),
-            ],
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: goalInfo),
+                  const SizedBox(width: 20),
+                  actionBtn,
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -437,9 +546,13 @@ class _HomePageState extends State<HomePage> {
   // 3. LEVEL & XP CARD (Dark Navy Card)
   // ─────────────────────────────────────────────────────────────
   Widget _buildLevelXpCard(BuildContext context, AppThemeTokens tokens, XPProfile xpProfile) {
-    final level = xpProfile.level > 0 ? xpProfile.level : 1;
+    const gamificationService = GamificationService();
+    final levelProgress = gamificationService.calculateLevelProgress(xpProfile.totalXP);
+    final level = levelProgress.currentLevel;
     final xp = xpProfile.totalXP;
-    final rankTitle = level == 1 ? 'Novice' : 'Apprentice';
+    final rankTitle = AppConstants.getRankTitle(level);
+    final currentXpInLevel = levelProgress.xpInCurrentLevel;
+    final xpNeededForNext = levelProgress.xpNeededForNextLevel;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -454,50 +567,59 @@ class _HomePageState extends State<HomePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'LEVEL $level',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF94A3B8),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 10,
-                      letterSpacing: 1.0,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'LEVEL $level',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: const Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 10,
+                        letterSpacing: 1.0,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    rankTitle,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 26,
+                    const SizedBox(height: 2),
+                    Text(
+                      rankTitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 26,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '$xp',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 32,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '$xp',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 32,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    'TOTAL XP',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF94A3B8),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10,
-                      letterSpacing: 1.0,
+                    Text(
+                      'TOTAL XP',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: const Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                        letterSpacing: 1.0,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -506,11 +628,11 @@ class _HomePageState extends State<HomePage> {
           // XP Progress Bar
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
-            child: const LinearProgressIndicator(
-              value: 0.48,
+            child: LinearProgressIndicator(
+              value: levelProgress.progressRatio,
               minHeight: 6,
-              backgroundColor: Color(0xFF1E293B),
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              backgroundColor: const Color(0xFF1E293B),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
             ),
           ),
           const SizedBox(height: 8),
@@ -519,12 +641,16 @@ class _HomePageState extends State<HomePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'LEVEL 1',
+                'LEVEL $level',
                 style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w700),
               ),
-              Text(
-                '20/40 to next level',
-                style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w700),
+              Expanded(
+                child: Text(
+                  '${xpNeededForNext - currentXpInLevel}/$xpNeededForNext to next level',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               Text(
                 'LEVEL 2',
@@ -627,12 +753,15 @@ class _HomePageState extends State<HomePage> {
         children: [
           Icon(icon, size: 16, color: iconColor),
           const SizedBox(width: 10),
-          Text(
-            text,
-            style: GoogleFonts.plusJakartaSans(
-              color: iconColor,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.plusJakartaSans(
+                color: iconColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -703,152 +832,167 @@ class _HomePageState extends State<HomePage> {
                 final hoursStr = (totalDeepWorkMins ~/ 60).toString().padLeft(2, '0');
                 final minsStr = (totalDeepWorkMins % 60).toString().padLeft(2, '0');
 
-                return Row(
-                  children: [
-                    // Left Card: Today's Accuracy Gauge
-                    Expanded(
-                      child: CustomCard(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          children: [
-                            Text(
-                              "TODAY'S ACCURACY",
-                              style: GoogleFonts.plusJakartaSans(
-                                color: tokens.contentTertiary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 10,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 90,
-                                  height: 90,
-                                  child: CircularProgressIndicator(
-                                    value: totalTodayTasks > 0 ? accuracyRatio : 1.0,
-                                    strokeWidth: 8,
-                                    backgroundColor: tokens.borderDefault,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      totalTodayTasks == 0
-                                          ? AppColors.primary
-                                          : (accuracyPct >= 80
-                                              ? const Color(0xFF00D9A5)
-                                              : (accuracyPct >= 50 ? AppColors.primary : Colors.red)),
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  '$accuracyPct%',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: tokens.contentPrimary,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 22,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: statusBgColor,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                statusLabel,
-                                style: GoogleFonts.plusJakartaSans(color: statusTextColor, fontWeight: FontWeight.w800, fontSize: 10),
-                              ),
-                            ),
-                          ],
+                final accuracyCard = CustomCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Text(
+                        "TODAY'S ACCURACY",
+                        style: GoogleFonts.plusJakartaSans(
+                          color: tokens.contentTertiary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
+                      const SizedBox(height: 14),
 
-                    // Right Card: Deep Work Dark Card
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 90,
+                            height: 90,
+                            child: CircularProgressIndicator(
+                              value: totalTodayTasks > 0 ? accuracyRatio : 1.0,
+                              strokeWidth: 8,
+                              backgroundColor: tokens.borderDefault,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                totalTodayTasks == 0
+                                    ? AppColors.primary
+                                    : (accuracyPct >= 80
+                                        ? const Color(0xFF00D9A5)
+                                        : (accuracyPct >= 50 ? AppColors.primary : Colors.red)),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '$accuracyPct%',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: tokens.contentPrimary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 22,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(20),
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Text(
+                          statusLabel,
+                          style: GoogleFonts.plusJakartaSans(color: statusTextColor, fontWeight: FontWeight.w800, fontSize: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                final deepWorkCard = Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DEEP WORK',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
                           children: [
                             Text(
-                              'DEEP WORK',
+                              '$hoursStr:$minsStr',
                               style: GoogleFonts.plusJakartaSans(
-                                color: const Color(0xFF94A3B8),
+                                color: Colors.white,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 10,
-                                letterSpacing: 0.8,
+                                fontSize: 32,
                               ),
                             ),
-                            const SizedBox(height: 10),
-
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  '$hoursStr:$minsStr',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 32,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'HRS',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: const Color(0xFF64748B),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
+                            const SizedBox(width: 6),
                             Text(
-                              totalDeepWorkMins == 0 ? '0 mins completed today' : '🔥 ${totalDeepWorkMins}m deep focus today',
+                              'HRS',
                               style: GoogleFonts.plusJakartaSans(
-                                color: totalDeepWorkMins == 0 ? const Color(0xFF64748B) : Colors.greenAccent,
+                                color: const Color(0xFF64748B),
+                                fontWeight: FontWeight.w800,
                                 fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1E293B),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  elevation: 0,
-                                ),
-                                onPressed: () => TabNavigationNotification(4).dispatch(context), // Focus Tab
-                                icon: Text(
-                                  'Start Session',
-                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 12),
-                                ),
-                                label: const Icon(LucideIcons.chevronRight, size: 14),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        totalDeepWorkMins == 0 ? '0 mins completed today' : '🔥 ${totalDeepWorkMins}m deep focus today',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: totalDeepWorkMins == 0 ? const Color(0xFF64748B) : Colors.greenAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 14),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E293B),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                          onPressed: () => const TabNavigationNotification(4).dispatch(context), // Focus Tab
+                          icon: Text(
+                            'Start Session',
+                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 12),
+                          ),
+                          label: const Icon(LucideIcons.chevronRight, size: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth < 550) {
+                      return Column(
+                        children: [
+                          accuracyCard,
+                          const SizedBox(height: 16),
+                          deepWorkCard,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: accuracyCard),
+                        const SizedBox(width: 16),
+                        Expanded(child: deepWorkCard),
+                      ],
+                    );
+                  },
                 );
               },
             );
@@ -944,37 +1088,44 @@ class _HomePageState extends State<HomePage> {
                         child: const Icon(LucideIcons.layoutGrid, size: 16, color: Color(0xFFBF5AF2)),
                       ),
                       const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'PRODUCTIVITY MODULE',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: tokens.contentTertiary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 9,
-                              letterSpacing: 0.8,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PRODUCTIVITY MODULE',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: tokens.contentTertiary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 9,
+                                letterSpacing: 0.8,
+                              ),
                             ),
-                          ),
-                          Text(
-                            'Task Analytics',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: tokens.contentPrimary,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
+                            Text(
+                              'Task Analytics',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: tokens.contentPrimary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       TextButton.icon(
-                        onPressed: () => TabNavigationNotification(2).dispatch(context),
-                        icon: Text(
-                          "Manage Today's Forge",
-                          style: GoogleFonts.plusJakartaSans(
-                            color: tokens.contentSecondary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4)),
+                        onPressed: () => const TabNavigationNotification(2).dispatch(context),
+                        icon: Flexible(
+                          child: Text(
+                            "Forge",
+                            style: GoogleFonts.plusJakartaSans(
+                              color: tokens.contentSecondary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         label: Icon(LucideIcons.chevronRight, size: 14, color: tokens.contentSecondary),
@@ -983,151 +1134,166 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // 6 Mini Metric Grid
-                  Row(
-                    children: [
-                      // Gauge Score
-                      Expanded(
-                        flex: 3,
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: tokens.surfaceElevated,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                'TASK DISCIPLINE SCORE',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: tokens.contentTertiary,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 9,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 70,
-                                    height: 70,
-                                    child: CircularProgressIndicator(
-                                      value: totalTasks > 0 ? (disciplineScore / 100.0) : 1.0,
-                                      strokeWidth: 6,
-                                      backgroundColor: tokens.borderDefault,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        totalTasks == 0
-                                            ? AppColors.primary
-                                            : (disciplineScore >= 80
-                                                ? Colors.green
-                                                : (disciplineScore >= 50 ? AppColors.primary : Colors.red)),
-                                      ),
-                                    ),
-                                  ),
-                                  Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '$disciplineScore',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          color: tokens.contentPrimary,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 18,
-                                        ),
-                                      ),
-                                      Text('/ 100', style: TextStyle(color: tokens.iconSubtle, fontSize: 9)),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                operatorLabel,
-                                style: GoogleFonts.plusJakartaSans(color: operatorColor, fontWeight: FontWeight.w900, fontSize: 9),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                  // 6 Mini Metric Grid + Gauge Score Layout
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 550;
 
-                      // 2x3 Grid of Stats
-                      Expanded(
-                        flex: 5,
+                      final gaugeScoreCard = Container(
+                        width: isNarrow ? double.infinity : null,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: tokens.surfaceElevated,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         child: Column(
                           children: [
-                            Row(
+                            Text(
+                              'TASK DISCIPLINE SCORE',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: tokens.contentTertiary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 9,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Stack(
+                              alignment: Alignment.center,
                               children: [
-                                _buildMiniMetricBox(tokens, LucideIcons.zap, '$totalActive', 'TOTAL ACTIVE', Colors.purple),
-                                const SizedBox(width: 8),
-                                _buildMiniMetricBox(tokens, LucideIcons.checkCircle, '$doneToday', 'DONE TODAY', Colors.green),
+                                SizedBox(
+                                  width: 70,
+                                  height: 70,
+                                  child: CircularProgressIndicator(
+                                    value: totalTasks > 0 ? (disciplineScore / 100.0) : 1.0,
+                                    strokeWidth: 6,
+                                    backgroundColor: tokens.borderDefault,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      totalTasks == 0
+                                          ? AppColors.primary
+                                          : (disciplineScore >= 80
+                                              ? Colors.green
+                                              : (disciplineScore >= 50 ? AppColors.primary : Colors.red)),
+                                    ),
+                                  ),
+                                ),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '$disciplineScore',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: tokens.contentPrimary,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                    Text('/ 100', style: TextStyle(color: tokens.iconSubtle, fontSize: 9)),
+                                  ],
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                _buildMiniMetricBox(tokens, LucideIcons.clock, '$pending', 'PENDING', Colors.orange),
-                                const SizedBox(width: 8),
-                                _buildMiniMetricBox(tokens, LucideIcons.target, '$accuracyPct%', 'DAILY ACCURACY', Colors.blue),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                _buildMiniMetricBox(tokens, LucideIcons.flame, currentStreakStr, 'CURRENT STREAK', Colors.orange),
-                                const SizedBox(width: 8),
-                                _buildMiniMetricBox(tokens, LucideIcons.trophy, bestStreakStr, 'BEST STREAK', Colors.amber),
-                              ],
+                            const SizedBox(height: 10),
+                            Text(
+                              operatorLabel,
+                              style: GoogleFonts.plusJakartaSans(color: operatorColor, fontWeight: FontWeight.w900, fontSize: 9),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                      );
+
+                      final statGrid = Column(
+                        children: [
+                          Row(
+                            children: [
+                              _buildMiniMetricBox(tokens, LucideIcons.zap, '$totalActive', 'TOTAL ACTIVE', Colors.purple),
+                              const SizedBox(width: 8),
+                              _buildMiniMetricBox(tokens, LucideIcons.checkCircle, '$doneToday', 'DONE TODAY', Colors.green),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _buildMiniMetricBox(tokens, LucideIcons.clock, '$pending', 'PENDING', Colors.orange),
+                              const SizedBox(width: 8),
+                              _buildMiniMetricBox(tokens, LucideIcons.target, '$accuracyPct%', 'ACCURACY', Colors.blue),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _buildMiniMetricBox(tokens, LucideIcons.flame, currentStreakStr, 'STREAK', Colors.orange),
+                              const SizedBox(width: 8),
+                              _buildMiniMetricBox(tokens, LucideIcons.trophy, bestStreakStr, 'BEST', Colors.amber),
+                            ],
+                          ),
+                        ],
+                      );
+
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            gaugeScoreCard,
+                            const SizedBox(height: 12),
+                            statGrid,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(flex: 3, child: gaugeScoreCard),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 5, child: statGrid),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 20),
 
-                  // Tabs: MONTHLY TRENDS | WEEKLY ACTIVITY
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => setState(() => _analyticsTab = 0),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _analyticsTab == 0 ? tokens.surfaceCard : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'MONTHLY TRENDS',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: _analyticsTab == 0 ? tokens.contentPrimary : tokens.contentTertiary,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 10,
+                  // Tabs: MONTHLY TRENDS | WEEKLY ACTIVITY (Scrollable for mobile)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => setState(() => _analyticsTab = 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _analyticsTab == 0 ? tokens.surfaceCard : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'MONTHLY TRENDS',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _analyticsTab == 0 ? tokens.contentPrimary : tokens.contentTertiary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () => setState(() => _analyticsTab = 1),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _analyticsTab == 1 ? tokens.surfaceCard : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'WEEKLY ACTIVITY',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: _analyticsTab == 1 ? tokens.contentPrimary : tokens.contentTertiary,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 10,
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => setState(() => _analyticsTab = 1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _analyticsTab == 1 ? tokens.surfaceCard : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'WEEKLY ACTIVITY',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _analyticsTab == 1 ? tokens.contentPrimary : tokens.contentTertiary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1141,27 +1307,38 @@ class _HomePageState extends State<HomePage> {
   Widget _buildMiniMetricBox(AppThemeTokens tokens, IconData icon, String value, String label, Color iconColor) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: tokens.surfaceElevated,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 14, color: iconColor),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 13),
-                ),
-                Text(
-                  label,
-                  style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w700, fontSize: 8),
-                ),
-              ],
+            Icon(icon, size: 13, color: iconColor),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 13),
+                    ),
+                  ),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      label,
+                      style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w700, fontSize: 8),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1221,29 +1398,33 @@ class _HomePageState extends State<HomePage> {
                       // Header Row (Month Title + Navigation)
                       Row(
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'CREATIVE CALENDAR & ACTIVITY',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: tokens.contentTertiary,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 9,
-                                  letterSpacing: 0.8,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'CREATIVE CALENDAR & ACTIVITY',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: tokens.contentTertiary,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 9,
+                                    letterSpacing: 0.8,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              Text(
-                                '$monthName $year',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: tokens.contentPrimary,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 16,
+                                Text(
+                                  '$monthName $year',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: tokens.contentPrimary,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 8),
                           InkWell(
                             onTap: () {
                               setState(() {
@@ -1687,14 +1868,18 @@ class _HomePageState extends State<HomePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Weekly Performance',
-                style: GoogleFonts.plusJakartaSans(
-                  color: tokens.contentPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
+              Expanded(
+                child: Text(
+                  'Weekly Performance',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: tokens.contentPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -1750,7 +1935,7 @@ class _HomePageState extends State<HomePage> {
                       style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 20),
                     ),
                     Text(
-                      'DEEP WORK',
+                      'PERFORMANCE',
                       style: GoogleFonts.plusJakartaSans(color: tokens.contentSecondary, fontSize: 10, fontWeight: FontWeight.w700),
                     ),
                   ],
@@ -1769,15 +1954,20 @@ class _HomePageState extends State<HomePage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(LucideIcons.calendar, size: 14, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Best Day',
-                      style: GoogleFonts.plusJakartaSans(color: tokens.contentSecondary, fontWeight: FontWeight.w700, fontSize: 11),
-                    ),
-                  ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.calendar, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Best Day',
+                          style: GoogleFonts.plusJakartaSans(color: tokens.contentSecondary, fontWeight: FontWeight.w700, fontSize: 11),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 Text(
                   loaded.bestDay,
@@ -1826,19 +2016,23 @@ class _HomePageState extends State<HomePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ANALYTICS',
-                        style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w800, fontSize: 9),
-                      ),
-                      Text(
-                        'Goal Activity',
-                        style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 14),
-                      ),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ANALYTICS',
+                          style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w800, fontSize: 9),
+                        ),
+                        Text(
+                          'Goal Activity',
+                          style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
@@ -1916,19 +2110,23 @@ class _HomePageState extends State<HomePage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'MOST ACTIVE GOAL',
-                          style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 9),
-                        ),
-                        Text(
-                          topGoal?.title ?? 'None',
-                          style: GoogleFonts.plusJakartaSans(color: const Color(0xFF1E1B4B), fontWeight: FontWeight.w900, fontSize: 13),
-                        ),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MOST ACTIVE GOAL',
+                            style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 9),
+                          ),
+                          Text(
+                            topGoal?.title ?? 'None',
+                            style: GoogleFonts.plusJakartaSans(color: const Color(0xFF1E1B4B), fontWeight: FontWeight.w900, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '$topPct%\nACTIVITY',
                       textAlign: TextAlign.right,

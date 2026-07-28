@@ -85,10 +85,6 @@ Widget _buildPage(
 }
 
 void main() {
-  tester_setup() {
-    // 1400×900 desktop viewport
-  }
-
   group('FocusSessionPage Widget Tests', () {
     // ── Existing: Empty State ────────────────────────────────────────────────
     testWidgets('Empty State - no mock strings or fallback headers appear on Focus page',

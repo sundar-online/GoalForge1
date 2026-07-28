@@ -35,7 +35,6 @@ class _GoalsPageState extends State<GoalsPage> {
   String _selectedFlaticonKey = 'target';
 
   bool _isFormExpanded = false;
-  bool _showAdvancedSettings = true;
   final Set<String> _expandedGoalIds = {};
   bool _hasInitializedExpanded = false;
   bool _isFocusGoal = false;
@@ -182,44 +181,48 @@ class _GoalsPageState extends State<GoalsPage> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 42.0,
-              height: 42.0,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+        Expanded(
+          child: Row(
+            children: [
+              Container(
+                width: 42.0,
+                height: 42.0,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.track_changes_rounded, color: AppColors.primary, size: 22.0),
               ),
-              child: const Icon(Icons.track_changes_rounded, color: AppColors.primary, size: 22.0),
-            ),
-            const SizedBox(width: 14.0),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Goals System',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w900,
-                    color: tokens.contentSecondary,
-                    fontSize: 26.0,
-                    letterSpacing: -0.5,
-                  ),
+              const SizedBox(width: 14.0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Goals System',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w900,
+                        color: tokens.contentSecondary,
+                        fontSize: 26.0,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2.0),
+                    Text(
+                      '🚀 Build daily systems to drive long-term progress.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w500,
+                        color: tokens.contentTertiary,
+                        fontSize: 13.0,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2.0),
-                Text(
-                  '🚀 Build daily systems to drive long-term progress.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w500,
-                    color: tokens.contentTertiary,
-                    fontSize: 13.0,
-                  ),
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
-
+        const SizedBox(width: 12.0),
         // Circular Plus Button
         GestureDetector(
           onTap: () => setState(() => _isFormExpanded = true),
@@ -247,82 +250,140 @@ class _GoalsPageState extends State<GoalsPage> {
     final inProgress = _latestState?.inProgressCount ?? 0;
     final missingCount = _latestState?.missingCount ?? 0;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 18.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E2235),
-        borderRadius: BorderRadius.circular(18.0),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F000000),
-            blurRadius: 16.0,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildSummaryCol('$avgMastery%', '📈 AVG MASTERY', AppColors.primary),
-                _buildSummaryCol('$finished', '🏆 FINISHED', const Color(0xFF00D9A5)),
-                _buildSummaryCol('$inProgress', '🚀 IN PROGRESS', Colors.white),
-                _buildSummaryCol('$missingCount', '💭 MISSING DREAMS', const Color(0xFFBF5AF2)),
-              ],
+    final actionControls = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 1. Reorder toggle (6-dots grip icon)
+        GestureDetector(
+          onTap: () => setState(() => _isReorderMode = !_isReorderMode),
+          child: Padding(
+            padding: const EdgeInsets.all(6.0),
+            child: Icon(
+              LucideIcons.gripVertical,
+              color: _isReorderMode ? AppColors.primary : Colors.white54,
+              size: 18.0,
             ),
           ),
-          // Right Controls inside the Dark Banner (Matching Reference Screenshot)
-          Container(
-            height: 28.0,
-            width: 1.0,
-            color: Colors.white.withValues(alpha: 0.12),
-            margin: const EdgeInsets.symmetric(horizontal: 16.0),
+        ),
+        const SizedBox(width: 4.0),
+        // 2. Expand all goals
+        GestureDetector(
+          onTap: () {
+            final goals = _latestState?.goals ?? [];
+            setState(() {
+              for (final g in goals) {
+                _expandedGoalIds.add(g.id);
+              }
+            });
+          },
+          child: const Padding(
+            padding: EdgeInsets.all(6.0),
+            child: Icon(LucideIcons.maximize2, color: Colors.white54, size: 16.0),
           ),
-          Row(
-            children: [
-              // 1. Reorder toggle (6-dots grip icon)
-              GestureDetector(
-                onTap: () => setState(() => _isReorderMode = !_isReorderMode),
-                child: Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: Icon(
-                    LucideIcons.gripVertical,
-                    color: _isReorderMode ? AppColors.primary : Colors.white54,
-                    size: 18.0,
-                  ),
+        ),
+        const SizedBox(width: 4.0),
+        // 3. Collapse all goals
+        GestureDetector(
+          onTap: () => setState(() => _expandedGoalIds.clear()),
+          child: const Padding(
+            padding: EdgeInsets.all(6.0),
+            child: Icon(LucideIcons.minimize2, color: Colors.white54, size: 16.0),
+          ),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 640;
+
+        if (isNarrow) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E2235),
+              borderRadius: BorderRadius.circular(18.0),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1F000000),
+                  blurRadius: 16.0,
+                  offset: Offset(0, 8),
                 ),
-              ),
-              const SizedBox(width: 4.0),
-              // 2. Expand all goals
-              GestureDetector(
-                onTap: () {
-                  final goals = _latestState?.goals ?? [];
-                  setState(() {
-                    for (final g in goals) {
-                      _expandedGoalIds.add(g.id);
-                    }
-                  });
-                },
-                child: const Padding(
-                  padding: EdgeInsets.all(6.0),
-                  child: Icon(LucideIcons.maximize2, color: Colors.white54, size: 16.0),
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'OVERVIEW STATS',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white54,
+                        fontSize: 10.0,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    actionControls,
+                  ],
                 ),
-              ),
-              const SizedBox(width: 4.0),
-              // 3. Collapse all goals
-              GestureDetector(
-                onTap: () => setState(() => _expandedGoalIds.clear()),
-                child: const Padding(
-                  padding: EdgeInsets.all(6.0),
-                  child: Icon(LucideIcons.minimize2, color: Colors.white54, size: 16.0),
+                const SizedBox(height: 12.0),
+                const Divider(color: Colors.white12, height: 1.0),
+                const SizedBox(height: 12.0),
+                Wrap(
+                  alignment: WrapAlignment.spaceAround,
+                  spacing: 16.0,
+                  runSpacing: 12.0,
+                  children: [
+                    _buildSummaryCol('$avgMastery%', '📈 AVG MASTERY', AppColors.primary),
+                    _buildSummaryCol('$finished', '🏆 FINISHED', const Color(0xFF00D9A5)),
+                    _buildSummaryCol('$inProgress', '🚀 IN PROGRESS', Colors.white),
+                    _buildSummaryCol('$missingCount', '💭 MISSING DREAMS', const Color(0xFFBF5AF2)),
+                  ],
                 ),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 18.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E2235),
+            borderRadius: BorderRadius.circular(18.0),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1F000000),
+                blurRadius: 16.0,
+                offset: Offset(0, 8),
               ),
             ],
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildSummaryCol('$avgMastery%', '📈 AVG MASTERY', AppColors.primary),
+                    _buildSummaryCol('$finished', '🏆 FINISHED', const Color(0xFF00D9A5)),
+                    _buildSummaryCol('$inProgress', '🚀 IN PROGRESS', Colors.white),
+                    _buildSummaryCol('$missingCount', '💭 MISSING DREAMS', const Color(0xFFBF5AF2)),
+                  ],
+                ),
+              ),
+              Container(
+                height: 28.0,
+                width: 1.0,
+                color: Colors.white.withValues(alpha: 0.12),
+                margin: const EdgeInsets.symmetric(horizontal: 16.0),
+              ),
+              actionControls,
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -359,18 +420,21 @@ class _GoalsPageState extends State<GoalsPage> {
     final activeGoalsCount = (_latestState?.goals ?? []).where((g) => !g.isMissingDream).length;
     final missingGoalsCount = (_latestState?.goals ?? []).where((g) => g.isMissingDream).length;
 
-    return Container(
-      padding: const EdgeInsets.all(4.0),
-      decoration: BoxDecoration(
-        color: tokens.surfaceChip,
-        borderRadius: BorderRadius.circular(14.0),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildPoolTab('Active Targets ($activeGoalsCount)', 'ACTIVE', activeTab, Icons.track_changes_rounded, AppColors.primary),
-          _buildPoolTab('Missing Dreams ($missingGoalsCount)', 'MISSING', activeTab, Icons.nightlight_round, const Color(0xFFBF5AF2)),
-        ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        padding: const EdgeInsets.all(4.0),
+        decoration: BoxDecoration(
+          color: tokens.surfaceChip,
+          borderRadius: BorderRadius.circular(14.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildPoolTab('Active Targets ($activeGoalsCount)', 'ACTIVE', activeTab, Icons.track_changes_rounded, AppColors.primary),
+            _buildPoolTab('Missing Dreams ($missingGoalsCount)', 'MISSING', activeTab, Icons.nightlight_round, const Color(0xFFBF5AF2)),
+          ],
+        ),
       ),
     );
   }
@@ -1324,11 +1388,6 @@ class _GoalsPageState extends State<GoalsPage> {
     final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final todayWeekday = weekdays[DateTime.now().weekday - 1];
     final isRestDay = habit.scheduleDays.isNotEmpty && !habit.scheduleDays.contains(todayWeekday);
-
-    // Type icon lookup
-    IconData typeIcon = Icons.access_time_rounded;
-    if (habit.type == 'count') typeIcon = Icons.layers_outlined;
-    if (habit.type == 'check') typeIcon = Icons.check_box_outlined;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

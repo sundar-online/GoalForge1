@@ -31,4 +31,24 @@ class AppConstants {
     11: 6000,
     12: 8000,
   };
+
+  // Level Rank Titles Mapping
+  static const Map<int, String> levelRankTitlesMap = {
+    1: 'Recruit',
+    2: 'Initiate',
+    3: 'Apprentice',
+    4: 'Practitioner',
+    5: 'Specialist',
+    6: 'Strategist',
+    7: 'Master',
+    8: 'Visionary',
+    9: 'Architect',
+    10: 'Grandmaster',
+    11: 'Sovereign',
+    12: 'Ascendant',
+  };
+
+  static String getRankTitle(int level) {
+    return levelRankTitlesMap[level] ?? 'Commander';
+  }
 }

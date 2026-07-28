@@ -1,6 +1,10 @@
 import '../constants/app_constants.dart';
+import '../domain/models/badge_model.dart';
+import '../domain/models/story_moment.dart';
 import '../domain/models/xp_profile.dart';
+import '../domain/models/xp_transaction.dart';
 import '../domain/repositories/gamification_repository.dart';
+import '../gamification/badges_catalog.dart';
 import '../utils/date_utils.dart';
 
 class LevelProgress {
@@ -20,10 +24,10 @@ class LevelProgress {
 }
 
 class GamificationService {
-  final GamificationRepository _gamificationRepository;
+  final GamificationRepository? _gamificationRepository;
 
   const GamificationService({
-    required GamificationRepository gamificationRepository,
+    GamificationRepository? gamificationRepository,
   }) : _gamificationRepository = gamificationRepository;
 
   /// Calculates current level for a given total XP based on AppConstants.levelXpMap
@@ -58,47 +62,152 @@ class GamificationService {
     );
   }
 
-  /// Evaluates and unlocks badges based on streak and total XP criteria
-  List<String> evaluateBadges(XPProfile profile, {int streakDays = 0}) {
-    final badges = Set<String>.from(profile.earnedBadges);
+  /// Evaluates and unlocks badges from BadgesCatalog based on metrics
+  Map<String, String> evaluateBadges(
+    XPProfile profile, {
+    int streakDays = 0,
+    int completedTasksCount = 0,
+    int completedHabitsCount = 0,
+    int focusMinutes = 0,
+    int perfectDaysCount = 0,
+    int completedGoalsCount = 0,
+  }) {
+    final unlocked = Map<String, String>.from(profile.unlockedBadgesMap);
+    final nowIso = DateTime.now().toIso8601String();
 
-    if (profile.totalXP > 0) badges.add('recruit_initiate');
-    if (streakDays >= 3) badges.add('streak_apprentice');
-    if (streakDays >= 7) badges.add('streak_warrior');
-    if (profile.totalXP >= 500) badges.add('focus_master');
-    if (profile.level >= 5 || profile.totalXP >= 800) badges.add('forge_master');
+    for (final badge in BadgesCatalog.allBadges) {
+      if (unlocked.containsKey(badge.id)) continue;
 
-    return badges.toList();
+      bool isUnlocked = false;
+      switch (badge.requirementType) {
+        case BadgeRequirementType.streak:
+          isUnlocked = streakDays >= badge.targetValue;
+          break;
+        case BadgeRequirementType.completedTasks:
+          isUnlocked = completedTasksCount >= badge.targetValue;
+          break;
+        case BadgeRequirementType.completedHabits:
+          isUnlocked = completedHabitsCount >= badge.targetValue;
+          break;
+        case BadgeRequirementType.focusMinutes:
+          isUnlocked = focusMinutes >= badge.targetValue;
+          break;
+        case BadgeRequirementType.perfectDays:
+          isUnlocked = perfectDaysCount >= badge.targetValue;
+          break;
+        case BadgeRequirementType.totalXP:
+          isUnlocked = profile.totalXP >= badge.targetValue;
+          break;
+        case BadgeRequirementType.completedGoals:
+          isUnlocked = completedGoalsCount >= badge.targetValue;
+          break;
+      }
+
+      if (isUnlocked) {
+        unlocked[badge.id] = nowIso;
+      }
+    }
+
+    return unlocked;
   }
 
-  /// Awards XP, updates level, records daily history in `xpHistory`, and unlocks badges
-  Future<XPProfile> awardXp(int amount, {int streakDays = 0}) async {
-    final currentProfile = _gamificationRepository.getXPProfile() ??
+  /// Awards XP, records activity transactions, updates level and evaluates badges
+  Future<XPProfile> awardXp(
+    int amount, {
+    String title = 'Activity Completed',
+    String type = 'general',
+    int streakDays = 0,
+    int completedTasksCount = 0,
+    int completedHabitsCount = 0,
+    int focusMinutes = 0,
+    int perfectDaysCount = 0,
+    int completedGoalsCount = 0,
+  }) async {
+    final currentProfile = _gamificationRepository?.getXPProfile() ??
         const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
 
     final newTotalXp = currentProfile.totalXP + amount;
     final newLevel = calculateLevel(newTotalXp);
     final todayStr = AppDateUtils.getTodayString();
+    final nowIso = DateTime.now().toIso8601String();
 
-    // Update daily XP history map (YYYY-MM-DD -> totalXpEarnedToday)
+    // Update daily XP history map
     final updatedHistory = Map<String, int>.from(currentProfile.xpHistory);
     updatedHistory[todayStr] = (updatedHistory[todayStr] ?? 0) + amount;
+
+    // Create new transaction log entry
+    final newTx = XpTransaction(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: title,
+      amount: amount,
+      timestamp: nowIso,
+      type: type,
+    );
+    final updatedTransactions = [newTx, ...currentProfile.transactions].take(50).toList();
 
     final tempProfile = currentProfile.copyWith(
       totalXP: newTotalXp,
       level: newLevel,
       xpHistory: updatedHistory,
+      transactions: updatedTransactions,
     );
 
-    final updatedBadges = evaluateBadges(tempProfile, streakDays: streakDays);
-    final nowStr = DateTime.now().toIso8601String();
+    final unlockedBadges = evaluateBadges(
+      tempProfile,
+      streakDays: streakDays,
+      completedTasksCount: completedTasksCount,
+      completedHabitsCount: completedHabitsCount,
+      focusMinutes: focusMinutes,
+      perfectDaysCount: perfectDaysCount,
+      completedGoalsCount: completedGoalsCount,
+    );
 
     final updatedProfile = tempProfile.copyWith(
-      earnedBadges: updatedBadges,
-      updatedAt: nowStr,
+      earnedBadges: unlockedBadges.keys.toList(),
+      unlockedBadgesMap: unlockedBadges,
+      updatedAt: nowIso,
     );
 
-    await _gamificationRepository.updateXPProfile(updatedProfile);
+    if (_gamificationRepository != null) {
+      await _gamificationRepository!.updateXPProfile(updatedProfile);
+    }
     return updatedProfile;
+  }
+
+  /// Auto-generates a Story Moment reflection when a goal reaches 100% completion
+  Future<XPProfile> recordGoalCompletion(String goalId, String goalTitle) async {
+    final currentProfile = _gamificationRepository?.getXPProfile() ??
+        const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
+
+    // Check if moment already recorded for this goal
+    if (currentProfile.storyMoments.any((s) => s.goalId == goalId)) {
+      return currentProfile;
+    }
+
+    final nowIso = DateTime.now().toIso8601String();
+    final newMoment = StoryMoment(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      goalId: goalId,
+      goalTitle: goalTitle,
+      reflectionText: 'Mastered target "$goalTitle" with 100% completion! A milestone preserved in your GoalForge history.',
+      unlockedAt: nowIso,
+    );
+
+    final updatedMoments = [newMoment, ...currentProfile.storyMoments];
+    final updatedProfile = currentProfile.copyWith(
+      storyMoments: updatedMoments,
+      updatedAt: nowIso,
+    );
+
+    if (_gamificationRepository != null) {
+      await _gamificationRepository!.updateXPProfile(updatedProfile);
+    }
+    // Award Goal completion XP (+50 XP)
+    return awardXp(
+      50,
+      title: 'Completed Goal: $goalTitle',
+      type: 'goal',
+      completedGoalsCount: updatedMoments.length,
+    );
   }
 }

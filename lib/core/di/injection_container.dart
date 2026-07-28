@@ -36,6 +36,7 @@ import '../../features/logs/presentation/bloc/notes_bloc.dart';
 import '../../features/events/presentation/bloc/events_bloc.dart';
 import '../../features/focus/presentation/bloc/focus_bloc.dart';
 import '../../features/analytics/presentation/bloc/analytics_bloc.dart';
+import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../services/ai_insights_service.dart';
 import '../services/notification_service.dart';
 import '../lifecycle/lifecycle_watcher.dart';
@@ -211,6 +212,17 @@ Future<void> initDependencies() async {
       focusRepository: sl<FocusRepository>(),
       gamificationRepository: sl<GamificationRepository>(),
       gamificationService: sl<GamificationService>(),
+    ),
+  );
+
+  sl.registerFactory<ProfileBloc>(
+    () => ProfileBloc(
+      gamificationRepository: sl<GamificationRepository>(),
+      gamificationService: sl<GamificationService>(),
+      goalsRepository: sl<GoalsRepository>(),
+      tasksRepository: sl<TasksRepository>(),
+      focusRepository: sl<FocusRepository>(),
+      firebaseAuth: sl<FirebaseAuth>(),
     ),
   );
 }

@@ -85,8 +85,10 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        if (state is Authenticated || state is Unauthenticated || state is AuthError) {
+        if (state is Authenticated) {
           return const MainNavigationPage();
+        } else if (state is Unauthenticated || state is AuthError) {
+          return const AuthPage();
         }
         
         // Show brand loading splash screen for AuthInitial & AuthLoading
