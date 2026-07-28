@@ -650,16 +650,27 @@ class _GoalsPageState extends State<GoalsPage> {
     final dailyHabitRatio = habits.isEmpty ? 0.0 : (completedHabitsCount / habits.length).clamp(0.0, 1.0);
 
     // Status flags
-    // isMastered = long-term goal fully achieved (progress >= 100%)  → green border, DONE badge, sorts to bottom
-    // isDoneToday = all of today's scheduled habits done              → teal ring accent only
+    // isMastered = long-term goal fully achieved (progress >= 100%)
+    // isDoneToday = all of today's scheduled habits done
     final isMastered = goal.progress >= 100.0;
-    final isDoneToday = dailyProgress >= 100.0 && habits.isNotEmpty;
-    // isGoalDone controls border color, shadow, and DONE badge — only for true mastery
-    final isGoalDone = isMastered;
+    final isDoneToday = (habits.isNotEmpty && completedHabitsCount == habits.length) || (dailyProgress >= 100.0 && habits.isNotEmpty);
+    // isGoalDone controls border color and shadow — true when completed today OR mastered
+    final isGoalDone = isMastered || isDoneToday;
 
     // Duration: total days of goal (creation → deadline, or elapsed if no deadline)
-    final createdAt = DateTime.tryParse(goal.createdAt);
-    final deadline = goal.deadline != null ? DateTime.tryParse(goal.deadline!) : null;
+    final createdAtRaw = DateTime.tryParse(goal.createdAt);
+    final deadlineRaw = goal.deadline != null ? DateTime.tryParse(goal.deadline!) : null;
+
+    // Strip time component: a goal created at 14:00 on day X with deadline on
+    // day Y should still yield (Y − X + 1) full calendar days, not one fewer
+    // because .inDays truncates the sub-day remainder.
+    final createdAt = createdAtRaw != null
+        ? DateTime(createdAtRaw.year, createdAtRaw.month, createdAtRaw.day)
+        : null;
+    final deadline = deadlineRaw != null
+        ? DateTime(deadlineRaw.year, deadlineRaw.month, deadlineRaw.day)
+        : null;
+    final todayDateOnly = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
     final int totalGoalDays;
     if (createdAt != null && deadline != null) {
@@ -667,7 +678,7 @@ class _GoalsPageState extends State<GoalsPage> {
       totalGoalDays = deadline.difference(createdAt).inDays + 1;
     } else if (createdAt != null) {
       // No deadline: show days elapsed so far (minimum 1)
-      totalGoalDays = DateTime.now().difference(createdAt).inDays + 1;
+      totalGoalDays = todayDateOnly.difference(createdAt).inDays + 1;
     } else {
       totalGoalDays = 1;
     }
@@ -1269,7 +1280,8 @@ class _GoalsPageState extends State<GoalsPage> {
                       createdAt: DateTime.now().toIso8601String(),
                     );
                     context.read<HabitsBloc>().add(CreateStandAloneHabitEvent(newHabit));
-                    context.read<GoalsBloc>().add(SubscribeToGoals());
+                    // GoalsBloc auto-refreshes via its _habitsSubscription (no
+                    // manual SubscribeToGoals() needed — that caused a loading flash).
                     setState(() {
                       _inlineAddingHabitGoalId = null;
                     });

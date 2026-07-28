@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -42,6 +43,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
   final TextEditingController _editorTitleController = TextEditingController();
   final TextEditingController _editorContentController = TextEditingController();
   final TextEditingController _newSubtaskController = TextEditingController();
+  final GlobalKey<_NoteEditorState> _noteEditorKey = GlobalKey<_NoteEditorState>();
 
   NotesLoaded? _latestState;
 
@@ -99,7 +101,6 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
       case NoteViewMode.detail:
         return _buildNoteDetailView(theme, context);
       case NoteViewMode.list:
-      default:
         return _buildNotesListView(theme, context);
     }
   }
@@ -853,11 +854,11 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
         const SizedBox(height: 20.0),
 
         if (!isChecklist) ...[
-          // Free Text Rich Format Toolbar (Screenshot 2)
+          // Free Text Rich Format Toolbar
           _buildRichFormatToolbar(),
           const SizedBox(height: 16.0),
 
-          // Rich Text Body Card
+          // Rich Note Editor
           Container(
             constraints: const BoxConstraints(minHeight: 360.0),
             padding: const EdgeInsets.all(24.0),
@@ -869,31 +870,18 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
                 BoxShadow(color: Color(0x0A000000), blurRadius: 16.0, offset: Offset(0, 6)),
               ],
             ),
-            child: TextField(
-              controller: _editorContentController,
-              maxLines: null,
-              onChanged: (newVal) {
-                _saveEditorContent(newVal);
+            child: Builder(
+              builder: (ctx) {
+                final tokens = AppThemeTokens.of(ctx);
+                return _NoteEditor(
+                  key: _noteEditorKey,
+                  masterController: _editorContentController,
+                  hintText: 'Start typing your note...',
+                  contentColor: tokens.contentPrimary,
+                  hintColor: tokens.borderStrong,
+                  onChanged: _saveEditorContent,
+                );
               },
-              style: GoogleFonts.plusJakartaSans(
-                color: AppThemeTokens.of(context).contentSecondary,
-                fontSize: 14.0,
-                height: 1.6,
-              ),
-              decoration: InputDecoration(
-                filled: false,
-                fillColor: Colors.transparent,
-                hintText: 'Start forging your thoughts with rich formats...',
-                hintStyle: GoogleFonts.plusJakartaSans(
-                  color: AppThemeTokens.of(context).borderStrong,
-                  fontSize: 14.0,
-                ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-              ),
             ),
           ),
           const SizedBox(height: 20.0),
@@ -1165,51 +1153,7 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
     }
   }
 
-  void _insertFormatting(String prefix, [String suffix = '']) {
-    final text = _editorContentController.text;
-    final selection = _editorContentController.selection;
-    String newText;
-    int newCursor;
-
-    if (!selection.isValid || selection.isCollapsed || selection.baseOffset < 0) {
-      final cursor = (selection.isValid && selection.baseOffset >= 0) ? selection.baseOffset : text.length;
-      final safeCursor = cursor > text.length ? text.length : cursor;
-      newText = text.replaceRange(safeCursor, safeCursor, '$prefix$suffix');
-      newCursor = safeCursor + prefix.length;
-    } else {
-      final start = selection.start;
-      final end = selection.end;
-      final selectedText = text.substring(start, end);
-      final replacement = '$prefix$selectedText$suffix';
-      newText = text.replaceRange(start, end, replacement);
-      newCursor = start + prefix.length + selectedText.length + suffix.length;
-    }
-
-    _editorContentController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newCursor),
-    );
-    _saveEditorContent(newText);
-    if (mounted) setState(() {});
-  }
-
-  void _insertLinePrefix(String linePrefix) {
-    final text = _editorContentController.text;
-    final selection = _editorContentController.selection;
-    final cursor = (selection.isValid && selection.baseOffset >= 0) ? selection.baseOffset : text.length;
-    final safeCursor = cursor > text.length ? text.length : cursor;
-    final newText = text.replaceRange(safeCursor, safeCursor, '\n$linePrefix');
-    final newCursor = safeCursor + 1 + linePrefix.length;
-
-    _editorContentController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newCursor),
-    );
-    _saveEditorContent(newText);
-    if (mounted) setState(() {});
-  }
-
-  // Formatting Toolbar Widget (Screenshot 2)
+  // Formatting Toolbar
   Widget _buildRichFormatToolbar() {
     return Builder(
       builder: (ctx) {
@@ -1225,36 +1169,31 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildToolbarIcon(LucideIcons.undo2, onTap: () {
-                  if (_editorContentController.text.isNotEmpty) {
-                    _editorContentController.clear();
-                  }
-                }),
+                _buildToolbarIcon(LucideIcons.undo2, onTap: () => _noteEditorKey.currentState?.undo()),
                 _buildToolbarIcon(LucideIcons.redo2, onTap: () {}),
                 _buildToolbarDivider(),
-                _buildToolbarTextBtn('H1', onTap: () => _insertLinePrefix('# ')),
-                _buildToolbarTextBtn('H2', onTap: () => _insertLinePrefix('## ')),
-                _buildToolbarTextBtn('H3', onTap: () => _insertLinePrefix('### ')),
-                _buildToolbarTextBtn('P', onTap: () => _insertLinePrefix('')),
+                _buildToolbarTextBtn('H1', onTap: () => _noteEditorKey.currentState?.applyLineType('h1')),
+                _buildToolbarTextBtn('H2', onTap: () => _noteEditorKey.currentState?.applyLineType('h2')),
+                _buildToolbarTextBtn('H3', onTap: () => _noteEditorKey.currentState?.applyLineType('h3')),
+                _buildToolbarTextBtn('P',  onTap: () => _noteEditorKey.currentState?.applyLineType('p')),
                 _buildToolbarDivider(),
-                _buildToolbarTextBtn('B', bold: true, onTap: () => _insertFormatting('**', '**')),
-                _buildToolbarTextBtn('I', italic: true, onTap: () => _insertFormatting('*', '*')),
-                _buildToolbarTextBtn('U', underline: true, onTap: () => _insertFormatting('<u>', '</u>')),
-                _buildToolbarTextBtn('S', strikethrough: true, onTap: () => _insertFormatting('~~', '~~')),
+                _buildToolbarTextBtn('B', bold: true,          onTap: () => _noteEditorKey.currentState?.applyInlineFormat('**', '**')),
+                _buildToolbarTextBtn('I', italic: true,        onTap: () => _noteEditorKey.currentState?.applyInlineFormat('*', '*')),
+                _buildToolbarTextBtn('U', underline: true,     onTap: () => _noteEditorKey.currentState?.applyInlineFormat('<u>', '</u>')),
+                _buildToolbarTextBtn('S', strikethrough: true, onTap: () => _noteEditorKey.currentState?.applyInlineFormat('~~', '~~')),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(LucideIcons.alignLeft, onTap: () {}),
-                _buildToolbarIcon(LucideIcons.alignCenter, onTap: () {}),
-                _buildToolbarIcon(LucideIcons.alignRight, onTap: () {}),
+                _buildToolbarIcon(LucideIcons.alignLeft,    onTap: () {}),
+                _buildToolbarIcon(LucideIcons.alignCenter,  onTap: () {}),
+                _buildToolbarIcon(LucideIcons.alignRight,   onTap: () {}),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(LucideIcons.list, onTap: () => _insertLinePrefix('• ')),
-                _buildToolbarIcon(LucideIcons.listOrdered, onTap: () => _insertLinePrefix('1. ')),
-                _buildToolbarIcon(LucideIcons.checkSquare, onTap: () => _insertLinePrefix('[ ] ')),
+                _buildToolbarIcon(LucideIcons.list,         onTap: () => _noteEditorKey.currentState?.applyLineType('bullet')),
+                _buildToolbarIcon(LucideIcons.listOrdered,  onTap: () => _noteEditorKey.currentState?.applyLineType('ordered')),
+                _buildToolbarIcon(LucideIcons.checkSquare,  onTap: () => _noteEditorKey.currentState?.applyLineType('checkbox')),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(LucideIcons.quote, onTap: () => _insertLinePrefix('> ')),
-                _buildToolbarIcon(LucideIcons.code, onTap: () => _insertFormatting('`', '`')),
+                _buildToolbarIcon(LucideIcons.quote, onTap: () => _noteEditorKey.currentState?.applyLineType('quote')),
+                _buildToolbarIcon(LucideIcons.code,  onTap: () => _noteEditorKey.currentState?.applyInlineFormat('`', '`')),
                 _buildToolbarDivider(),
-                _buildToolbarIcon(LucideIcons.palette, onTap: () => _insertFormatting('<color>', '</color>')),
-                _buildToolbarIcon(LucideIcons.link, onTap: () => _insertFormatting('[', '](url)')),
+                _buildToolbarIcon(LucideIcons.link, onTap: () => _noteEditorKey.currentState?.applyInlineFormat('[', '](url)')),
                 _buildToolbarIcon(LucideIcons.type, onTap: () {}),
               ],
             ),
@@ -1388,3 +1327,442 @@ class _SystemLogsPageState extends State<SystemLogsPage> {
     });
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  Data model: one logical line in the note editor
+// ═══════════════════════════════════════════════════════════════
+class _EditorLine {
+  String type; // 'h1' | 'h2' | 'h3' | 'p' | 'bullet' | 'ordered' | 'quote' | 'checkbox'
+  String content;
+  bool checked;
+
+  _EditorLine({this.type = 'p', this.content = '', this.checked = false});
+
+  factory _EditorLine.fromMarkdown(String raw) {
+    if (raw.startsWith('### ')) return _EditorLine(type: 'h3', content: raw.substring(4));
+    if (raw.startsWith('## '))  return _EditorLine(type: 'h2', content: raw.substring(3));
+    if (raw.startsWith('# '))   return _EditorLine(type: 'h1', content: raw.substring(2));
+    if (raw.startsWith('> '))   return _EditorLine(type: 'quote', content: raw.substring(2));
+    if (raw.startsWith('[x] ')) return _EditorLine(type: 'checkbox', content: raw.substring(4), checked: true);
+    if (raw.startsWith('[ ] ')) return _EditorLine(type: 'checkbox', content: raw.substring(4), checked: false);
+    if (raw.startsWith('• '))   return _EditorLine(type: 'bullet', content: raw.substring(2));
+    if (raw.startsWith('- '))   return _EditorLine(type: 'bullet', content: raw.substring(2));
+    if (RegExp(r'^\d+\.\s').hasMatch(raw)) {
+      return _EditorLine(type: 'ordered', content: raw.replaceFirst(RegExp(r'^\d+\.\s'), ''));
+    }
+    return _EditorLine(type: 'p', content: raw);
+  }
+
+  String toMarkdown({int orderedIndex = 1}) {
+    switch (type) {
+      case 'h1':      return '# $content';
+      case 'h2':      return '## $content';
+      case 'h3':      return '### $content';
+      case 'quote':   return '> $content';
+      case 'checkbox':return checked ? '[x] $content' : '[ ] $content';
+      case 'bullet':  return '• $content';
+      case 'ordered': return '$orderedIndex. $content';
+      default:        return content;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Line-based rich note editor
+//  — Each logical line is a separate TextField with correct style
+//  — Enter  → new paragraph line below cursor
+//  — Backspace at start → merge with previous line
+//  — Toolbar calls applyLineType / applyInlineFormat / undo
+// ═══════════════════════════════════════════════════════════════
+class _NoteEditor extends StatefulWidget {
+  final TextEditingController masterController;
+  final String hintText;
+  final Color contentColor;
+  final Color hintColor;
+  final ValueChanged<String>? onChanged;
+
+  const _NoteEditor({
+    super.key,
+    required this.masterController,
+    required this.hintText,
+    required this.contentColor,
+    required this.hintColor,
+    this.onChanged,
+  });
+
+  @override
+  _NoteEditorState createState() => _NoteEditorState();
+}
+
+class _NoteEditorState extends State<_NoteEditor> {
+  late List<_EditorLine> _lines;
+  late List<TextEditingController> _controllers;
+  late List<FocusNode> _focusNodes;
+  int _focusedIndex = 0;
+  String _lastMasterText = '';
+
+  // Undo stack — stores markdown snapshots
+  final List<String> _history = [];
+  int _historyIndex = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFromMarkdown(widget.masterController.text);
+    widget.masterController.addListener(_onMasterChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.masterController.removeListener(_onMasterChanged);
+    _disposeAll();
+    super.dispose();
+  }
+
+  void _disposeAll() {
+    for (final c in _controllers) { c.dispose(); }
+    for (final f in _focusNodes) { f.dispose(); }
+  }
+
+  // ── Parse markdown into lines ──────────────────────────────
+  void _initFromMarkdown(String markdown) {
+    _lastMasterText = markdown;
+    final rawLines = markdown.isEmpty ? [''] : markdown.split('\n');
+    _lines = rawLines.map(_EditorLine.fromMarkdown).toList();
+    if (_lines.isEmpty) _lines = [_EditorLine()];
+
+    _controllers = _lines
+        .map((l) => TextEditingController(text: l.content))
+        .toList();
+    _focusNodes = List.generate(_lines.length, _makeFocusNode);
+  }
+
+  FocusNode _makeFocusNode(int i) {
+    final fn = FocusNode();
+    fn.addListener(() {
+      if (fn.hasFocus && mounted) setState(() => _focusedIndex = i);
+    });
+    return fn;
+  }
+
+  // ── External note switch ───────────────────────────────────
+  void _onMasterChanged() {
+    final newText = widget.masterController.text;
+    if (newText != _lastMasterText) {
+      setState(() {
+        _disposeAll();
+        _initFromMarkdown(newText);
+      });
+    }
+  }
+
+  // ── Save to masterController ───────────────────────────────
+  void _save({bool recordHistory = true}) {
+    // Sync content from controllers → lines
+    for (int i = 0; i < _lines.length && i < _controllers.length; i++) {
+      _lines[i].content = _controllers[i].text;
+    }
+
+    int ordNum = 1;
+    final markdown = _lines.map((l) {
+      if (l.type == 'ordered') {
+        final s = l.toMarkdown(orderedIndex: ordNum++);
+        return s;
+      }
+      ordNum = 1;
+      return l.toMarkdown();
+    }).join('\n');
+
+    _lastMasterText = markdown;
+    widget.masterController.removeListener(_onMasterChanged);
+    widget.masterController.text = markdown;
+    widget.masterController.addListener(_onMasterChanged);
+    widget.onChanged?.call(markdown);
+
+    if (recordHistory) {
+      if (_history.isEmpty || _history.last != markdown) {
+        if (_historyIndex < _history.length - 1) {
+          _history.removeRange(_historyIndex + 1, _history.length);
+        }
+        _history.add(markdown);
+        if (_history.length > 50) _history.removeAt(0);
+        _historyIndex = _history.length - 1;
+      }
+    }
+  }
+
+  // ── Public API called by toolbar ───────────────────────────
+  void applyLineType(String type) {
+    if (_focusedIndex >= _lines.length) return;
+    setState(() => _lines[_focusedIndex].type = type);
+    _save();
+    // Re-focus the line so the user can keep typing
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_focusedIndex < _focusNodes.length) {
+        _focusNodes[_focusedIndex].requestFocus();
+      }
+    });
+  }
+
+  void applyInlineFormat(String prefix, String suffix) {
+    if (_focusedIndex >= _controllers.length) return;
+    final ctrl = _controllers[_focusedIndex];
+    final sel = ctrl.selection;
+    if (!sel.isValid) return;
+    final text = ctrl.text;
+    if (sel.isCollapsed) {
+      final newText = text.replaceRange(sel.start, sel.end, '$prefix$suffix');
+      ctrl.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: sel.start + prefix.length),
+      );
+    } else {
+      final selected = text.substring(sel.start, sel.end);
+      final newText = text.replaceRange(sel.start, sel.end, '$prefix$selected$suffix');
+      ctrl.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(
+            offset: sel.start + prefix.length + selected.length + suffix.length),
+      );
+    }
+    _lines[_focusedIndex].content = ctrl.text;
+    _save();
+  }
+
+  void undo() {
+    if (_historyIndex <= 0) return;
+    _historyIndex--;
+    final prev = _history[_historyIndex];
+    setState(() {
+      _disposeAll();
+      _initFromMarkdown(prev);
+    });
+    _lastMasterText = prev;
+    widget.masterController.removeListener(_onMasterChanged);
+    widget.masterController.text = prev;
+    widget.masterController.addListener(_onMasterChanged);
+    widget.onChanged?.call(prev);
+  }
+
+  // ── Line editing logic ─────────────────────────────────────
+  void _onLineChanged(int index, String value) {
+    // Detect Enter (newline inserted by hardware keyboard on some platforms)
+    if (value.contains('\n')) {
+      final parts = value.split('\n');
+      _controllers[index].text = parts[0];
+      _controllers[index].selection =
+          TextSelection.collapsed(offset: parts[0].length);
+      _lines[index].content = parts[0];
+
+      for (int j = 1; j < parts.length; j++) {
+        _insertLineAfter(index + j - 1, initialContent: parts[j]);
+      }
+
+      final targetIdx = (index + parts.length - 1).clamp(0, _lines.length - 1);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (targetIdx < _focusNodes.length) {
+          _focusNodes[targetIdx].requestFocus();
+          final c = _controllers[targetIdx];
+          c.selection = TextSelection.collapsed(offset: c.text.length);
+        }
+      });
+      return;
+    }
+    _lines[index].content = value;
+    _save();
+  }
+
+  void _insertLineAfter(int afterIndex, {String initialContent = ''}) {
+    setState(() {
+      final newLine = _EditorLine(content: initialContent);
+      _lines.insert(afterIndex + 1, newLine);
+
+      final newCtrl = TextEditingController(text: initialContent);
+      _controllers.insert(afterIndex + 1, newCtrl);
+
+      final idx = afterIndex + 1;
+      final newFn = FocusNode();
+      newFn.addListener(() {
+        if (newFn.hasFocus && mounted) setState(() => _focusedIndex = idx);
+      });
+      _focusNodes.insert(afterIndex + 1, newFn);
+      _focusedIndex = afterIndex + 1;
+    });
+    _save();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (afterIndex + 1 < _focusNodes.length) {
+        _focusNodes[afterIndex + 1].requestFocus();
+      }
+    });
+  }
+
+  void _mergeWithPrevious(int index) {
+    if (index <= 0) return;
+    setState(() {
+      final prevCtrl = _controllers[index - 1];
+      final currCtrl = _controllers[index];
+      final joinOffset = prevCtrl.text.length;
+      final merged = prevCtrl.text + currCtrl.text;
+      prevCtrl.value = TextEditingValue(
+        text: merged,
+        selection: TextSelection.collapsed(offset: joinOffset),
+      );
+      _lines[index - 1].content = merged;
+
+      _controllers[index].dispose();
+      _focusNodes[index].dispose();
+      _controllers.removeAt(index);
+      _focusNodes.removeAt(index);
+      _lines.removeAt(index);
+      _focusedIndex = index - 1;
+    });
+    _save();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (index - 1 < _focusNodes.length) {
+        _focusNodes[index - 1].requestFocus();
+      }
+    });
+  }
+
+  // ── Styling ────────────────────────────────────────────────
+  TextStyle _styleFor(String type, {bool checkedThrough = false}) {
+    final c = widget.contentColor;
+    TextStyle base;
+    switch (type) {
+      case 'h1':
+        base = GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w900, color: c, height: 1.25);
+        break;
+      case 'h2':
+        base = GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: c, height: 1.3);
+        break;
+      case 'h3':
+        base = GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w700, color: c, height: 1.35);
+        break;
+      case 'quote':
+        base = GoogleFonts.plusJakartaSans(fontSize: 14, fontStyle: FontStyle.italic, color: c.withValues(alpha: 0.6), height: 1.6);
+        break;
+      default:
+        base = GoogleFonts.plusJakartaSans(fontSize: 14, color: c, height: 1.6);
+    }
+    if (checkedThrough) {
+      return base.copyWith(decoration: TextDecoration.lineThrough, color: c.withValues(alpha: 0.4));
+    }
+    return base;
+  }
+
+  EdgeInsets _paddingFor(String type) {
+    switch (type) {
+      case 'h1': return const EdgeInsets.only(top: 16, bottom: 6);
+      case 'h2': return const EdgeInsets.only(top: 12, bottom: 4);
+      case 'h3': return const EdgeInsets.only(top: 8, bottom: 2);
+      default:   return const EdgeInsets.symmetric(vertical: 1);
+    }
+  }
+
+  // ── Build one line ─────────────────────────────────────────
+  Widget _buildLine(int index) {
+    final line = _lines[index];
+    final style = _styleFor(line.type, checkedThrough: line.type == 'checkbox' && line.checked);
+
+    Widget field = Focus(
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace) {
+          final ctrl = _controllers[index];
+          if (ctrl.text.isEmpty ||
+              (ctrl.selection.isCollapsed && ctrl.selection.baseOffset == 0)) {
+            if (index > 0) {
+              _mergeWithPrevious(index);
+              return KeyEventResult.handled;
+            }
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: TextField(
+        controller: _controllers[index],
+        focusNode: _focusNodes[index],
+        maxLines: null,
+        style: style,
+        cursorColor: widget.contentColor,
+        onChanged: (v) => _onLineChanged(index, v),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 2),
+          hintText: index == 0 ? widget.hintText : null,
+          hintStyle: index == 0
+              ? GoogleFonts.plusJakartaSans(color: widget.hintColor, fontSize: 14, height: 1.6)
+              : null,
+        ),
+      ),
+    );
+
+    // Line leader (bullet dot, checkbox, quote bar, ordered number)
+    Widget leader = const SizedBox.shrink();
+    switch (line.type) {
+      case 'bullet':
+        leader = Padding(
+          padding: const EdgeInsets.only(right: 8, top: 3),
+          child: Text('•', style: style),
+        );
+        break;
+      case 'ordered':
+        final num = _lines.sublist(0, index + 1).where((l) => l.type == 'ordered').length;
+        leader = Padding(
+          padding: const EdgeInsets.only(right: 6, top: 3),
+          child: SizedBox(width: 22, child: Text('$num.', style: style)),
+        );
+        break;
+      case 'quote':
+        leader = Container(
+          width: 3,
+          margin: const EdgeInsets.only(right: 10, top: 2, bottom: 2),
+          decoration: BoxDecoration(
+            color: widget.contentColor.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        );
+        break;
+      case 'checkbox':
+        leader = GestureDetector(
+          onTap: () {
+            setState(() => _lines[index].checked = !_lines[index].checked);
+            _save();
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8, top: 1),
+            child: Icon(
+              line.checked
+                  ? Icons.check_box_rounded
+                  : Icons.check_box_outline_blank_rounded,
+              size: 18,
+              color: line.checked
+                  ? AppColors.primary
+                  : widget.contentColor.withValues(alpha: 0.4),
+            ),
+          ),
+        );
+        break;
+    }
+
+    return Padding(
+      padding: _paddingFor(line.type),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [leader, Expanded(child: field)],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [for (int i = 0; i < _lines.length; i++) _buildLine(i)],
+    );
+  }
+}
+

@@ -3,6 +3,7 @@ import '../../../../core/domain/models/goal.dart';
 import '../../../../core/domain/models/xp_profile.dart';
 import '../../../../core/domain/models/scheduled_event.dart';
 import '../../../../core/services/ai_insights_service.dart';
+import '../../domain/models/coach_intelligence.dart';
 
 abstract class DashboardState extends Equatable {
   const DashboardState();
@@ -26,6 +27,12 @@ class DashboardLoaded extends DashboardState {
   final String bestDay;
   final List<AiInsight> insights;
 
+  final HeroNextAction? nextBestAction;
+  final AtRiskHabitInfo? atRiskHabit;
+  final GoalAttentionInfo? goalAttention;
+  final RecoveryProtocolInfo? recoveryProtocol;
+  final int disciplineScore;
+
   const DashboardLoaded({
     this.focusGoal,
     this.habitsLeftToday = 0,
@@ -36,6 +43,11 @@ class DashboardLoaded extends DashboardState {
     this.weeklyFocusDuration = '0h 0m',
     this.bestDay = 'N/A',
     this.insights = const [],
+    this.nextBestAction,
+    this.atRiskHabit,
+    this.goalAttention,
+    this.recoveryProtocol,
+    this.disciplineScore = 85,
   });
 
   @override
@@ -49,6 +61,11 @@ class DashboardLoaded extends DashboardState {
         weeklyFocusDuration,
         bestDay,
         insights,
+        nextBestAction,
+        atRiskHabit,
+        goalAttention,
+        recoveryProtocol,
+        disciplineScore,
       ];
 }
 
@@ -59,3 +76,4 @@ class DashboardError extends DashboardState {
   @override
   List<Object?> get props => [message];
 }
+

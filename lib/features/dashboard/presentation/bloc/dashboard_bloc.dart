@@ -15,6 +15,7 @@ import '../../../../core/utils/date_utils.dart';
 import '../../../../core/services/ai_insights_service.dart';
 import '../../../../core/services/streak_service.dart';
 import '../../../../core/utils/logger.dart';
+import '../../domain/models/coach_intelligence.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
@@ -86,6 +87,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       weeklyAccuracy: event.weeklyAccuracy,
       weeklyFocusDuration: event.weeklyFocusDuration,
       bestDay: event.bestDay,
+      insights: event.insights,
+      nextBestAction: event.nextBestAction,
+      atRiskHabit: event.atRiskHabit,
+      goalAttention: event.goalAttention,
+      recoveryProtocol: event.recoveryProtocol,
+      disciplineScore: event.disciplineScore,
     ));
   }
 
@@ -133,6 +140,74 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         streakDays: globalStreak,
       );
 
+      // Compute Hero Next Action
+      HeroNextAction? nextAction;
+      if (tasks.isNotEmpty) {
+        final pendingTask = tasks.where((t) => !t.completed).firstOrNull ?? tasks.first;
+        nextAction = HeroNextAction(
+          title: pendingTask.title,
+          category: focusGoal?.title ?? 'Daily Tasks',
+          type: 'task',
+          durationMins: 25,
+          targetId: pendingTask.id,
+          goalId: focusGoal?.id ?? '',
+        );
+      } else if (focusGoal != null) {
+        nextAction = HeroNextAction(
+          title: 'Complete Daily Deep Work Session for ${focusGoal.title}',
+          category: focusGoal.title,
+          type: 'focus',
+          durationMins: 25,
+          targetId: focusGoal.id,
+          goalId: focusGoal.id,
+        );
+      } else {
+        nextAction = null;
+      }
+
+      // Compute At Risk Habit Info
+      AtRiskHabitInfo? atRiskHabitInfo;
+      final todayStr = AppDateUtils.toLocalYYYYMMDD(DateTime.now());
+      final atRisk = habits.where((h) => !h.completedDates.contains(todayStr) && !h.completed).firstOrNull;
+      if (atRisk != null) {
+        atRiskHabitInfo = AtRiskHabitInfo(
+          habitId: atRisk.id,
+          habitTitle: atRisk.title,
+          streakDays: atRisk.streak > 0 ? atRisk.streak : 0,
+          riskPercent: 85,
+          daysMissed: 1,
+          explanationWhy: 'You have not completed this today. 85% probability of breaking momentum if left until night.',
+          consequenceText: 'If ignored today, your ${atRisk.streak}-day streak will reset to 0.',
+          recoveryActionText: 'Complete 5m micro-habit session now.',
+        );
+      }
+
+      // Compute Goal Attention Info
+      GoalAttentionInfo? goalAttentionInfo;
+      final attentionGoalTarget = goals.where((g) => g.progress < 0.8).firstOrNull ?? (goals.isNotEmpty ? goals.first : null);
+      if (attentionGoalTarget != null) {
+        final percent = (attentionGoalTarget.progress * 100).toInt();
+        goalAttentionInfo = GoalAttentionInfo(
+          goalId: attentionGoalTarget.id,
+          goalTitle: attentionGoalTarget.title,
+          status: percent < 40 ? 'critical' : 'at_risk',
+          completionPercent: percent,
+          explanationWhy: 'Progress is $percent%. Velocity target requires 1 sub-task completion today.',
+          nextActionText: 'Execute focus session for ${attentionGoalTarget.title}.',
+        );
+      }
+
+      // Compute Recovery Protocol Info
+      const recoveryProtocolInfo = RecoveryProtocolInfo(
+        title: 'Frictionless Recovery Protocol',
+        explanation: 'Fell behind yesterday? Complete a 10m micro-focus session right now to preserve 80% daily momentum.',
+        microActionText: 'Launch 10m Recovery Session',
+        durationMins: 10,
+      );
+
+      // Compute Discipline Score
+      final disciplineScore = (accuracy * 100).toInt().clamp(0, 100);
+
       add(UpdateDashboardData(
         focusGoal: focusGoal,
         habitsLeftToday: habitsLeft,
@@ -143,7 +218,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         weeklyFocusDuration: focusDuration,
         bestDay: bestDay,
         insights: insights,
+        nextBestAction: nextAction,
+        atRiskHabit: atRiskHabitInfo,
+        goalAttention: goalAttentionInfo,
+        recoveryProtocol: recoveryProtocolInfo,
+        disciplineScore: disciplineScore,
       ));
+
     } catch (e, stack) {
       AppLogger.e('Error recalculating dashboard data', e, stack);
       add(UpdateDashboardData(

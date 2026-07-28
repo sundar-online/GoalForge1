@@ -1,18 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/constants/app_constants.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../../../core/domain/models/goal.dart';
+import '../../../../core/domain/models/quick_thought.dart';
+import '../../../../core/domain/models/scheduled_event.dart';
+import '../../../../core/domain/models/task.dart';
+import '../../../../core/domain/models/xp_profile.dart';
 import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../core/theme/theme_cubit.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart' as auth;
+import '../../../events/presentation/bloc/events_bloc.dart';
+import '../../../events/presentation/bloc/events_event.dart';
+import '../../../events/presentation/bloc/events_state.dart';
+import '../../../goals/presentation/bloc/goals_bloc.dart';
+import '../../../goals/presentation/bloc/goals_state.dart';
+import '../../../logs/presentation/bloc/notes_bloc.dart';
+import '../../../logs/presentation/bloc/notes_event.dart';
+import '../../../tasks/presentation/bloc/tasks_bloc.dart';
+import '../../../tasks/presentation/bloc/tasks_state.dart';
+import '../../../focus/presentation/bloc/focus_bloc.dart';
+import '../../../focus/presentation/bloc/focus_state.dart';
+import '../../../main_navigation_page.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_state.dart';
-import '../../../../core/theme/theme_cubit.dart';
-import '../../../../core/theme/app_theme_tokens.dart';
-import '../../../main_navigation_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,12 +39,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  String _activeTab = 'OVERVIEW'; // 'OVERVIEW', 'GOALS', 'TASKS'
   DashboardLoaded? _latestState;
+  int _analyticsTab = 0; // 0: MONTHLY TRENDS, 1: WEEKLY ACTIVITY
+  DateTime _selectedCalendarDate = DateTime.now();
+  DateTime _focusedCalendarMonth = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = AppThemeTokens.of(context);
+    final isDesktop = ResponsiveLayout.isDesktop(context);
 
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
@@ -38,42 +59,117 @@ class _HomePageState extends State<HomePage> {
         if (_latestState == null) {
           if (state is DashboardError) {
             return Scaffold(
+              backgroundColor: tokens.surfaceElevated,
               body: Center(
                 child: Text(state.message, style: const TextStyle(color: Colors.red)),
               ),
             );
           }
-          return const Scaffold(
-            body: Center(
+          return Scaffold(
+            backgroundColor: tokens.surfaceElevated,
+            body: const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             ),
           );
         }
 
-        final isWide = !ResponsiveLayout.isMobile(context);
-        final isDesktop = ResponsiveLayout.isDesktop(context);
+        final loaded = _latestState!;
+        final xpProfile = loaded.xpProfile;
 
         return Scaffold(
+          backgroundColor: tokens.surfaceElevated,
           body: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
               child: Center(
                 child: Container(
-                  constraints: BoxConstraints(maxWidth: isDesktop ? 1380.0 : (isWide ? 950.0 : 600.0)),
+                  constraints: const BoxConstraints(maxWidth: 1380.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header Section
-                      _buildHeader(theme),
-                      const SizedBox(height: 20.0),
+                      // ── TOP HEADER (Greeting + Actions) ──
+                      _buildTopHeader(context, theme, tokens),
 
-                      // Tab Selector
-                      _buildTabSelector(theme),
                       const SizedBox(height: 24.0),
 
-                      // Dynamic Tab Content
-                      _buildTabContent(theme, isWide),
+                      // ── MAIN CONTENT GRID (2 COLUMNS ON DESKTOP) ──
+                      if (isDesktop)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // LEFT COLUMN (65%)
+                            Expanded(
+                              flex: 65,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFocusGoalCard(context, tokens, loaded),
+                                  const SizedBox(height: 16.0),
+                                  _buildLevelXpCard(context, tokens, xpProfile),
+                                  const SizedBox(height: 16.0),
+                                  _buildAlertBannersStack(context, tokens),
+                                  const SizedBox(height: 16.0),
+                                  _buildAccuracyAndDeepWorkRow(context, tokens, loaded),
+                                  const SizedBox(height: 20.0),
+                                  _buildTaskAnalyticsModule(context, tokens, loaded),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(width: 24.0),
+
+                            // RIGHT COLUMN (35%)
+                            Expanded(
+                              flex: 35,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInteractiveCalendarSection(context, tokens),
+                                  const SizedBox(height: 16.0),
+                                  _buildWeeklyPerformanceCard(context, tokens, loaded),
+                                  const SizedBox(height: 16.0),
+                                  _buildGoalActivityDonutCard(context, tokens),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildFocusGoalCard(context, tokens, loaded),
+                            const SizedBox(height: 16.0),
+                            _buildLevelXpCard(context, tokens, xpProfile),
+                            const SizedBox(height: 16.0),
+                            _buildAlertBannersStack(context, tokens),
+                            const SizedBox(height: 16.0),
+                            _buildAccuracyAndDeepWorkRow(context, tokens, loaded),
+                            const SizedBox(height: 20.0),
+                            _buildTaskAnalyticsModule(context, tokens, loaded),
+                            const SizedBox(height: 24.0),
+                            _buildInteractiveCalendarSection(context, tokens),
+                            const SizedBox(height: 16.0),
+                            _buildWeeklyPerformanceCard(context, tokens, loaded),
+                            const SizedBox(height: 16.0),
+                            _buildGoalActivityDonutCard(context, tokens),
+                          ],
+                        ),
+
                       const SizedBox(height: 32.0),
+
+                      // ── FOOTER ──
+                      Center(
+                        child: Text(
+                          '© 2026 GOALFORGE STRATEGY ADVANCED PRODUCTIVITY SUITE',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: tokens.contentTertiary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -85,13 +181,15 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- Top Header ---
-  Widget _buildHeader(ThemeData theme) {
-    String displayName = 'rajkumar m';
-    String avatarLetter = 'R';
+  // ─────────────────────────────────────────────────────────────
+  // 1. TOP HEADER (Greeting + Quote + Header Action Buttons)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildTopHeader(BuildContext context, ThemeData theme, AppThemeTokens tokens) {
+    String displayName = 'Sundaramoorthy.S';
+    String avatarLetter = 'S';
     final authState = context.read<AuthBloc>().state;
     if (authState is auth.Authenticated) {
-      displayName = authState.user.displayName ?? 'rajkumar m';
+      displayName = authState.user.displayName ?? 'Sundaramoorthy.S';
       if (displayName.isNotEmpty) {
         avatarLetter = displayName[0].toUpperCase();
       }
@@ -107,368 +205,127 @@ class _HomePageState extends State<HomePage> {
             children: [
               Text(
                 'Hey, $displayName 👋',
-                style: AppTypography.displayFont(
-                  fontWeight: FontWeight.w800,
-                  color: AppThemeTokens.of(context).contentSecondary,
-                  fontSize: 26.0,
+                style: GoogleFonts.plusJakartaSans(
+                  color: tokens.contentPrimary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 26,
                   letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 4.0),
               Text(
-                '"Small daily improvements lead to stunning results."',
-                style: AppTypography.bodyFont(
-                  fontWeight: FontWeight.w400,
-                  color: AppThemeTokens.of(context).contentTertiary,
-                  fontSize: 13.0,
+                '"Discipline is choosing between what you want now and what you want most."',
+                style: GoogleFonts.plusJakartaSans(
+                  color: tokens.contentTertiary,
+                  fontStyle: FontStyle.italic,
+                  fontSize: 13,
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(width: 12.0),
+
+        // Action Buttons Row
         Row(
           children: [
             _buildHeaderIconButton(
-              context,
-              Icons.psychology_alt_outlined,
-              const Color(0xFFF2E6FF),
-              const Color(0xFFBF5AF2),
+              icon: theme.brightness == Brightness.dark ? LucideIcons.sun : LucideIcons.moon,
+              bgColor: tokens.surfaceCard,
+              iconColor: tokens.contentPrimary,
+              onTap: () => context.read<ThemeCubit>().toggleTheme(),
             ),
             const SizedBox(width: 8.0),
-            _buildHeaderIconButton(
-              context,
-              Icons.auto_awesome,
-              const Color(0xFFEEF2FF),
-              AppColors.primary,
-            ),
-            const SizedBox(width: 8.0),
-            GestureDetector(
-              onTap: () {
-                context.read<ThemeCubit>().toggleTheme();
-              },
-              child: Container(
-                width: 38.0,
-                height: 38.0,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(10.0),
-                  border: Border.all(color: theme.colorScheme.outline),
-                ),
-                child: Icon(
-                  theme.brightness == Brightness.dark
-                      ? Icons.wb_sunny_outlined
-                      : Icons.brightness_2_outlined,
-                  color: theme.colorScheme.onSurface,
-                  size: 18.0,
+            // User Avatar Circle
+            Container(
+              width: 38.0,
+              height: 38.0,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E293B),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  avatarLetter,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15.0,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 8.0),
-            _buildProfileAvatarBadge(context, avatarLetter),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildHeaderIconButton(
-    BuildContext context,
-    IconData icon,
-    Color bgColor,
-    Color iconColor,
-  ) {
-    return Container(
-      width: 38.0,
-      height: 38.0,
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(10.0),
-      ),
-      child: Icon(
-        icon,
-        color: iconColor,
-        size: 18.0,
-      ),
-    );
-  }
-
-  Widget _buildProfileAvatarBadge(BuildContext context, String letter) {
-    return Container(
-      width: 38.0,
-      height: 38.0,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2E),
-        borderRadius: BorderRadius.circular(10.0),
-      ),
-      child: Center(
-        child: Text(
-          letter,
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 15.0,
-          ),
+  Widget _buildHeaderIconButton({
+    required IconData icon,
+    required Color bgColor,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38.0,
+        height: 38.0,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        child: Center(
+          child: Icon(icon, size: 18.0, color: iconColor),
         ),
       ),
     );
   }
 
-  Widget _buildTabSelector(ThemeData theme) {
-    final tokens = AppThemeTokens.of(context);
-
-    Widget buildTabButton(String label, String tabKey, IconData icon) {
-      final isActive = _activeTab == tabKey;
-      return GestureDetector(
-        onTap: () {
-          setState(() {
-            _activeTab = tabKey;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10.0),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.25),
-                      blurRadius: 8.0,
-                      offset: const Offset(0, 2),
-                    )
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 15.0,
-                color: isActive ? Colors.white : tokens.contentSecondary,
-              ),
-              const SizedBox(width: 6.0),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  fontWeight: FontWeight.w800,
-                  color: isActive ? Colors.white : tokens.contentSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(4.0),
-      decoration: BoxDecoration(
-        color: tokens.surfaceChip,
-        borderRadius: BorderRadius.circular(14.0),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          buildTabButton('Overview', 'OVERVIEW', Icons.dashboard_outlined),
-          buildTabButton('Goals', 'GOALS', Icons.track_changes_outlined),
-          buildTabButton('Tasks', 'TASKS', Icons.checklist_outlined),
-        ],
-      ),
-    );
-  }
-
-  // --- Dynamic Tab Content ---
-  Widget _buildTabContent(ThemeData theme, bool isWide) {
-    switch (_activeTab) {
-      case 'GOALS':
-        return _buildGoalsTab(theme, isWide);
-      case 'TASKS':
-        return _buildTasksTab(theme);
-      case 'OVERVIEW':
-      default:
-        return _buildOverviewTab(theme, isWide);
-    }
-  }
-
-  // ==================== OVERVIEW TAB ====================
-  Widget _buildOverviewTab(ThemeData theme, bool isWide) {
-    if (isWide) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Left Main Column (62% width)
-          Expanded(
-            flex: 62,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_latestState?.focusGoal != null) ...[
-                  _buildFocusGoalCard(theme),
-                  const SizedBox(height: 20.0),
-                ],
-                _buildRecruitCard(theme),
-                const SizedBox(height: 20.0),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildTodayAccuracyCard(theme)),
-                    const SizedBox(width: 20.0),
-                    Expanded(child: _buildDeepWorkCard(theme)),
-                  ],
-                ),
-                const SizedBox(height: 20.0),
-                _buildTaskAnalyticsCard(theme),
-                const SizedBox(height: 24.0),
-                _buildMainTargetsSection(theme),
-              ],
-            ),
-          ),
-          const SizedBox(width: 24.0),
-
-          // Right Widgets Panel Column (38% width)
-          Expanded(
-            flex: 38,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildQuickThoughtsCard(theme),
-                const SizedBox(height: 16.0),
-                _buildUpcomingEventsCard(theme),
-                const SizedBox(height: 16.0),
-                _buildWeeklyPerformanceCard(theme),
-                const SizedBox(height: 16.0),
-                _buildGoalActivityCard(theme),
-                const SizedBox(height: 16.0),
-                _buildConsistencyMapWidget(theme),
-                const SizedBox(height: 16.0),
-                _buildGoalHeatmapWidget(theme),
-                const SizedBox(height: 16.0),
-                _buildTaskOverviewWidget(theme),
-                const SizedBox(height: 24.0),
-                _buildFooterWidget(theme),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Mobile layout
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_latestState?.focusGoal != null) ...[
-          _buildFocusGoalCard(theme),
-          const SizedBox(height: 16.0),
-        ],
-        _buildRecruitCard(theme),
-        const SizedBox(height: 16.0),
-        _buildQuickThoughtsCard(theme),
-        const SizedBox(height: 16.0),
-        _buildTodayAccuracyCard(theme),
-        const SizedBox(height: 16.0),
-        _buildDeepWorkCard(theme),
-        const SizedBox(height: 16.0),
-        _buildUpcomingEventsCard(theme),
-        const SizedBox(height: 16.0),
-        _buildWeeklyPerformanceCard(theme),
-        const SizedBox(height: 16.0),
-        _buildGoalActivityCard(theme),
-        const SizedBox(height: 16.0),
-        _buildTaskAnalyticsCard(theme),
-        const SizedBox(height: 24.0),
-        _buildMainTargetsSection(theme),
-        const SizedBox(height: 24.0),
-        _buildFooterWidget(theme),
-      ],
-    );
-  }
-
-  // --- Focus Goal Card ---
-  Widget _buildFocusGoalCard(ThemeData theme) {
-    final goal = _latestState?.focusGoal;
-    if (goal == null) return const SizedBox.shrink();
-
-    final title = goal.title;
-    final progress = goal.progress;
-    final deadlineStr = goal.deadline ?? '31 Dec 2026';
-    final habitsLeft = _latestState?.habitsLeftToday ?? 4;
+  // ─────────────────────────────────────────────────────────────
+  // 2. FOCUS GOAL CARD (Left Top)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildFocusGoalCard(BuildContext context, AppThemeTokens tokens, DashboardLoaded loaded) {
+    final goal = loaded.focusGoal;
+    final title = goal?.title ?? 'No Focus Goal Set';
+    final progressPct = goal != null
+        ? (goal.progress > 1.0 ? goal.progress : goal.progress * 100).toInt()
+        : 0;
+    final progressValue = goal != null
+        ? (goal.progress > 1.0 ? goal.progress / 100.0 : goal.progress).clamp(0.0, 1.0)
+        : 0.0;
+    final dueDateText = (goal != null && goal.deadline != null && goal.deadline!.isNotEmpty)
+        ? 'Due: ${goal.deadline}'
+        : 'No Active Target';
+    final activeHabitsText = goal != null
+        ? '${loaded.habitsLeftToday} Habits/Tasks Active'
+        : '0 Habits Active';
 
     return CustomCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.track_changes, size: 14.0, color: AppColors.primary),
-                const SizedBox(width: 4.0),
-                Text(
-                  'FOCUS GOAL',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.primary,
-                    fontSize: 9.0,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12.0),
-          Text(
-            title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 24.0,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1E2235),
-            ),
-          ),
-          const SizedBox(height: 8.0),
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: Text(
-                  'Due: $deadlineStr',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.outline,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11.0,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8.0),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(8.0),
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.checklist, size: 12.0, color: AppColors.outline),
-                    const SizedBox(width: 4.0),
+                    const Icon(LucideIcons.target, size: 12, color: AppColors.primary),
+                    const SizedBox(width: 4),
                     Text(
-                      '$habitsLeft habits left today',
+                      'FOCUS GOAL',
                       style: GoogleFonts.plusJakartaSans(
-                        color: AppColors.outline,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11.0,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 10,
+                        letterSpacing: 0.8,
                       ),
                     ),
                   ],
@@ -476,108 +333,119 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          const SizedBox(height: 20.0),
+          const SizedBox(height: 12),
+
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'GOAL MASTERY',
-                style: GoogleFonts.plusJakartaSans(
-                  color: AppColors.outline,
-                  letterSpacing: 0.8,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 9.0,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: tokens.contentPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          dueDateText,
+                          style: TextStyle(color: tokens.contentTertiary, fontSize: 12),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          width: 4,
+                          height: 4,
+                          decoration: BoxDecoration(color: tokens.contentTertiary, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          activeHabitsText,
+                          style: TextStyle(color: tokens.contentTertiary, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Text(
+                          'GOAL MASTERY',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: tokens.contentSecondary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '$progressPct%',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: tokens.contentPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: progressValue,
+                        minHeight: 6,
+                        backgroundColor: tokens.borderDefault,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                '${progress.toInt()}%',
-                style: GoogleFonts.plusJakartaSans(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12.0,
+              const SizedBox(width: 20),
+
+              // Continue Goal Button
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
                 ),
+                onPressed: () => TabNavigationNotification(4).dispatch(context), // Focus Tab
+                icon: Text(
+                  goal != null ? 'Continue Goal' : 'Forge Goal',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+                label: const Icon(LucideIcons.chevronRight, size: 16),
               ),
             ],
-          ),
-          const SizedBox(height: 8.0),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4.0),
-            child: LinearProgressIndicator(
-              value: progress / 100.0,
-              minHeight: 8.0,
-              backgroundColor: AppColors.surfaceContainerLow,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-            ),
-          ),
-          const SizedBox(height: 16.0),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => const TabNavigationNotification(1).dispatch(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14.0),
-                ),
-                elevation: 0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Continue Goal',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 14.0),
-                  ),
-                  const SizedBox(width: 6.0),
-                  const Icon(Icons.chevron_right, size: 18.0),
-                ],
-              ),
-            ),
           ),
         ],
       ),
     );
   }
 
-  // --- Level Recruit Card ---
-  Widget _buildRecruitCard(ThemeData theme) {
-    final level = _latestState?.xpProfile.level ?? 1;
-    final totalXp = _latestState?.xpProfile.totalXP ?? 0;
-
-    final nextLevelXp = AppConstants.levelXpMap[level + 1] ?? (level * 100);
-    final currentLevelXp = AppConstants.levelXpMap[level] ?? 0;
-    final requiredXpForNextLevel = nextLevelXp - currentLevelXp;
-    final progressXp = totalXp - currentLevelXp;
-    final progressPercent = requiredXpForNextLevel > 0 ? (progressXp / requiredXpForNextLevel).clamp(0.0, 1.0) : 0.0;
-    final xpNeeded = (nextLevelXp - totalXp).clamp(0, 99999);
-
-    String levelTitle = 'Recruit';
-    if (level >= 10) {
-      levelTitle = 'Grandmaster';
-    } else if (level >= 7) {
-      levelTitle = 'Master';
-    } else if (level >= 5) {
-      levelTitle = 'Elite';
-    } else if (level >= 3) {
-      levelTitle = 'Initiate';
-    }
-
-    final disciplineScore = (totalXp / 10 + 40).toInt().clamp(10, 100);
+  // ─────────────────────────────────────────────────────────────
+  // 3. LEVEL & XP CARD (Dark Navy Card)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildLevelXpCard(BuildContext context, AppThemeTokens tokens, XPProfile xpProfile) {
+    final level = xpProfile.level > 0 ? xpProfile.level : 1;
+    final xp = xpProfile.totalXP;
+    final rankTitle = level == 1 ? 'Novice' : 'Apprentice';
 
     return Container(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2E),
-        borderRadius: BorderRadius.circular(24.0),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 20.0,
-            offset: Offset(0, 10.0),
-          ),
-        ],
+        color: const Color(0xFF0F172A), // Dark slate / navy background
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,20 +460,19 @@ class _HomePageState extends State<HomePage> {
                   Text(
                     'LEVEL $level',
                     style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white38,
-                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10,
                       letterSpacing: 1.0,
-                      fontSize: 9.0,
                     ),
                   ),
-                  const SizedBox(height: 4.0),
+                  const SizedBox(height: 2),
                   Text(
-                    levelTitle,
+                    rankTitle,
                     style: GoogleFonts.plusJakartaSans(
                       color: Colors.white,
-                      fontSize: 28.0,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 26,
                     ),
                   ),
                 ],
@@ -614,599 +481,1206 @@ class _HomePageState extends State<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '$totalXp',
+                    '$xp',
                     style: GoogleFonts.plusJakartaSans(
                       color: Colors.white,
-                      fontSize: 32.0,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 32,
                     ),
                   ),
                   Text(
-                    '⭐ TOTAL XP',
+                    'TOTAL XP',
                     style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white38,
+                      color: const Color(0xFF94A3B8),
                       fontWeight: FontWeight.w800,
-                      fontSize: 8.5,
-                      letterSpacing: 0.8,
+                      fontSize: 10,
+                      letterSpacing: 1.0,
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 20.0),
+          const SizedBox(height: 16),
+
+          // XP Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: const LinearProgressIndicator(
+              value: 0.48,
+              minHeight: 6,
+              backgroundColor: Color(0xFF1E293B),
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+          ),
+          const SizedBox(height: 8),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '🏆 LEVEL $level',
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white38,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 8.5,
-                ),
+                'LEVEL 1',
+                style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w700),
               ),
               Text(
-                '🚀 LEVEL ${level + 1}',
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white38,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 8.5,
-                ),
+                '20/40 to next level',
+                style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'LEVEL 2',
+                style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w700),
               ),
             ],
           ),
-          const SizedBox(height: 6.0),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4.0),
-            child: LinearProgressIndicator(
-              value: progressPercent,
-              minHeight: 6.0,
-              backgroundColor: Colors.white10,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+          const SizedBox(height: 16),
+
+          // Bottom Streak Pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ),
-          const SizedBox(height: 4.0),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '⚡ $xpNeeded XP to next level',
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white38,
-                fontSize: 8.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 18.0),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF334155),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'STREAK UNK 40',
+                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(width: 10),
+                const Icon(LucideIcons.flame, size: 14, color: Colors.orange),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Your consistency is reaching alpha levels.',
+                    style: GoogleFonts.plusJakartaSans(color: const Color(0xFFCBD5E1), fontSize: 12, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(LucideIcons.zap, size: 14, color: Colors.amber),
+                const SizedBox(width: 6),
+                const Icon(LucideIcons.trophy, size: 14, color: Colors.amber),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 4. ALERT BANNERS STACK (3 Pills)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildAlertBannersStack(BuildContext context, AppThemeTokens tokens) {
+    return Column(
+      children: [
+        _buildSingleAlertPill(
+          icon: LucideIcons.alertTriangle,
+          text: 'Your streak is at risk',
+          iconColor: Colors.amber.shade800,
+          bgColor: const Color(0xFFFEF3C7),
+          borderColor: const Color(0xFFFDE68A),
+        ),
+        const SizedBox(height: 8),
+        _buildSingleAlertPill(
+          icon: LucideIcons.clock,
+          text: 'Low productivity detected',
+          iconColor: Colors.red.shade700,
+          bgColor: const Color(0xFFFEE2E2),
+          borderColor: const Color(0xFFFCA5A5),
+        ),
+        const SizedBox(height: 8),
+        _buildSingleAlertPill(
+          icon: LucideIcons.zap,
+          text: 'Great consistency!',
+          iconColor: Colors.green.shade700,
+          bgColor: const Color(0xFFDCFCE7),
+          borderColor: const Color(0xFF86EFAC),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSingleAlertPill({
+    required IconData icon,
+    required String text,
+    required Color iconColor,
+    required Color bgColor,
+    required Color borderColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: iconColor),
+          const SizedBox(width: 10),
+          Text(
+            text,
+            style: GoogleFonts.plusJakartaSans(
+              color: iconColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 5. ACCURACY & DEEP WORK ROW (Split 2 Cards)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildAccuracyAndDeepWorkRow(BuildContext context, AppThemeTokens tokens, DashboardLoaded loaded) {
+    return BlocBuilder<GoalsBloc, GoalsState>(
+      builder: (context, goalsState) {
+        return BlocBuilder<TasksBloc, TasksState>(
+          builder: (context, tasksState) {
+            return BlocBuilder<FocusBloc, FocusState>(
+              builder: (context, focusState) {
+                final todayStr = AppDateUtils.getTodayString();
+
+                int totalTodayTasks = 0;
+                int doneTodayTasks = 0;
+                if (tasksState is TasksLoaded) {
+                  final tasks = tasksState.effectiveAllTasks;
+                  totalTodayTasks = tasks.length;
+                  doneTodayTasks = tasks.where((t) => t.completed || t.completedDates.contains(todayStr)).length;
+                }
+
+                final double accuracyRatio = totalTodayTasks > 0 ? (doneTodayTasks / totalTodayTasks) : 1.0;
+                final int accuracyPct = (accuracyRatio * 100).toInt();
+
+                String statusLabel = 'No Tasks Today';
+                Color statusBgColor = tokens.surfaceElevated;
+                Color statusTextColor = tokens.contentSecondary;
+
+                if (totalTodayTasks > 0) {
+                  if (accuracyPct >= 80) {
+                    statusLabel = 'Elite Performance';
+                    statusBgColor = const Color(0xFFE6FBF5);
+                    statusTextColor = const Color(0xFF00D9A5);
+                  } else if (accuracyPct >= 50) {
+                    statusLabel = 'On Track';
+                    statusBgColor = AppColors.primary.withValues(alpha: 0.12);
+                    statusTextColor = AppColors.primary;
+                  } else {
+                    statusLabel = 'Recovery Needed';
+                    statusBgColor = Colors.red.withValues(alpha: 0.12);
+                    statusTextColor = Colors.red.shade700;
+                  }
+                }
+
+                int totalFocusMinsToday = 0;
+                if (focusState is FocusLoaded) {
+                  totalFocusMinsToday = focusState.totalFocusMinutesToday;
+                }
+
+                int habitMinsToday = 0;
+                if (goalsState is GoalsLoaded) {
+                  for (final habitList in goalsState.habitsByGoalId.values) {
+                    for (final h in habitList) {
+                      if (h.type == 'time' && (h.completedDates.contains(todayStr) || h.timeSpent > 0)) {
+                        habitMinsToday += h.timeSpent;
+                      }
+                    }
+                  }
+                }
+
+                final int totalDeepWorkMins = totalFocusMinsToday + habitMinsToday;
+                final hoursStr = (totalDeepWorkMins ~/ 60).toString().padLeft(2, '0');
+                final minsStr = (totalDeepWorkMins % 60).toString().padLeft(2, '0');
+
+                return Row(
                   children: [
-                    Text(
-                      'DISCIPLINE',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: Colors.white38,
-                        fontSize: 7.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                    // Left Card: Today's Accuracy Gauge
+                    Expanded(
+                      child: CustomCard(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            Text(
+                              "TODAY'S ACCURACY",
+                              style: GoogleFonts.plusJakartaSans(
+                                color: tokens.contentTertiary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 90,
+                                  height: 90,
+                                  child: CircularProgressIndicator(
+                                    value: totalTodayTasks > 0 ? accuracyRatio : 1.0,
+                                    strokeWidth: 8,
+                                    backgroundColor: tokens.borderDefault,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      totalTodayTasks == 0
+                                          ? AppColors.primary
+                                          : (accuracyPct >= 80
+                                              ? const Color(0xFF00D9A5)
+                                              : (accuracyPct >= 50 ? AppColors.primary : Colors.red)),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '$accuracyPct%',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: tokens.contentPrimary,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 22,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: statusBgColor,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: GoogleFonts.plusJakartaSans(color: statusTextColor, fontWeight: FontWeight.w800, fontSize: 10),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 2.0),
-                    Text(
-                      '$disciplineScore',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: Colors.white,
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(width: 16),
+
+                    // Right Card: Deep Work Dark Card
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'DEEP WORK',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: const Color(0xFF94A3B8),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  '$hoursStr:$minsStr',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 32,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'HRS',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              totalDeepWorkMins == 0 ? '0 mins completed today' : '🔥 ${totalDeepWorkMins}m deep focus today',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: totalDeepWorkMins == 0 ? const Color(0xFF64748B) : Colors.greenAccent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  elevation: 0,
+                                ),
+                                onPressed: () => TabNavigationNotification(4).dispatch(context), // Focus Tab
+                                icon: Text(
+                                  'Start Session',
+                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 12),
+                                ),
+                                label: const Icon(LucideIcons.chevronRight, size: 14),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 10.0),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(10.0),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                  ),
-                  child: Row(
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 6. TASK ANALYTICS MODULE (Productivity Module)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildTaskAnalyticsModule(BuildContext context, AppThemeTokens tokens, DashboardLoaded loaded) {
+    return BlocBuilder<GoalsBloc, GoalsState>(
+      builder: (context, goalsState) {
+        return BlocBuilder<TasksBloc, TasksState>(
+          builder: (context, tasksState) {
+            List<Goal> goals = [];
+            if (goalsState is GoalsLoaded) {
+              goals = goalsState.goals;
+            }
+
+            List<Task> tasks = [];
+            if (tasksState is TasksLoaded) {
+              tasks = tasksState.effectiveAllTasks;
+            }
+
+            final todayStr = AppDateUtils.getTodayString();
+            final totalTasks = tasks.length;
+            final doneToday = tasks.where((t) => t.completed || t.completedDates.contains(todayStr)).length;
+            final totalActive = tasks.length;
+            final pending = tasks.where((t) => !t.completed && !t.completedDates.contains(todayStr)).length;
+
+            final accuracyRatio = totalTasks > 0 ? (doneToday / totalTasks) : 1.0;
+            final accuracyPct = (accuracyRatio * 100).toInt();
+            final disciplineScore = totalTasks > 0 ? accuracyPct : 100;
+
+            String operatorLabel = 'NO TASKS YET';
+            Color operatorColor = tokens.contentSecondary;
+            if (totalTasks > 0) {
+              if (disciplineScore >= 80) {
+                operatorLabel = 'OPTIMAL DISCIPLINE';
+                operatorColor = Colors.green.shade700;
+              } else if (disciplineScore >= 50) {
+                operatorLabel = 'MODERATE PACE';
+                operatorColor = AppColors.primary;
+              } else {
+                operatorLabel = 'INITIATE OPERATOR';
+                operatorColor = Colors.red.shade700;
+              }
+            }
+
+            int currentStreak = 0;
+            int bestStreak = 0;
+
+            if (tasks.isNotEmpty) {
+              final maxTaskStreak = tasks.map((t) => t.streak).reduce((a, b) => a > b ? a : b);
+              final maxTaskBestStreak = tasks.map((t) => t.bestStreak).reduce((a, b) => a > b ? a : b);
+              currentStreak = maxTaskStreak;
+              bestStreak = maxTaskBestStreak;
+            }
+            if (goals.isNotEmpty) {
+              final maxGoalStreak = goals.map((g) => g.streak).reduce((a, b) => a > b ? a : b);
+              final maxGoalBestStreak = goals.map((g) => g.bestStreak).reduce((a, b) => a > b ? a : b);
+              if (maxGoalStreak > currentStreak) currentStreak = maxGoalStreak;
+              if (maxGoalBestStreak > bestStreak) bestStreak = maxGoalBestStreak;
+            }
+
+            if (doneToday > 0 && currentStreak == 0) {
+              currentStreak = 1;
+            }
+            if (doneToday > 0 && bestStreak == 0) {
+              bestStreak = 1;
+            }
+
+            final currentStreakStr = '${currentStreak}d';
+            final bestStreakStr = '${bestStreak}d';
+
+            return CustomCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      const Icon(Icons.auto_awesome, color: AppColors.primary, size: 14.0),
-                      const SizedBox(width: 8.0),
-                      Expanded(
-                        child: Text(
-                          'Exceptional output today. Keep your momentum.',
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF2E6FF),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(LucideIcons.layoutGrid, size: 16, color: Color(0xFFBF5AF2)),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'PRODUCTIVITY MODULE',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: tokens.contentTertiary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          Text(
+                            'Task Analytics',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: tokens.contentPrimary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () => TabNavigationNotification(2).dispatch(context),
+                        icon: Text(
+                          "Manage Today's Forge",
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white70,
-                            fontSize: 11.0,
-                            height: 1.2,
-                            fontWeight: FontWeight.w500,
+                            color: tokens.contentSecondary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                        label: Icon(LucideIcons.chevronRight, size: 14, color: tokens.contentSecondary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 6 Mini Metric Grid
+                  Row(
+                    children: [
+                      // Gauge Score
+                      Expanded(
+                        flex: 3,
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: tokens.surfaceElevated,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'TASK DISCIPLINE SCORE',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: tokens.contentTertiary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 9,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 70,
+                                    height: 70,
+                                    child: CircularProgressIndicator(
+                                      value: totalTasks > 0 ? (disciplineScore / 100.0) : 1.0,
+                                      strokeWidth: 6,
+                                      backgroundColor: tokens.borderDefault,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        totalTasks == 0
+                                            ? AppColors.primary
+                                            : (disciplineScore >= 80
+                                                ? Colors.green
+                                                : (disciplineScore >= 50 ? AppColors.primary : Colors.red)),
+                                      ),
+                                    ),
+                                  ),
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '$disciplineScore',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          color: tokens.contentPrimary,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 18,
+                                        ),
+                                      ),
+                                      Text('/ 100', style: TextStyle(color: tokens.iconSubtle, fontSize: 9)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                operatorLabel,
+                                style: GoogleFonts.plusJakartaSans(color: operatorColor, fontWeight: FontWeight.w900, fontSize: 9),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // 2x3 Grid of Stats
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                _buildMiniMetricBox(tokens, LucideIcons.zap, '$totalActive', 'TOTAL ACTIVE', Colors.purple),
+                                const SizedBox(width: 8),
+                                _buildMiniMetricBox(tokens, LucideIcons.checkCircle, '$doneToday', 'DONE TODAY', Colors.green),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _buildMiniMetricBox(tokens, LucideIcons.clock, '$pending', 'PENDING', Colors.orange),
+                                const SizedBox(width: 8),
+                                _buildMiniMetricBox(tokens, LucideIcons.target, '$accuracyPct%', 'DAILY ACCURACY', Colors.blue),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _buildMiniMetricBox(tokens, LucideIcons.flame, currentStreakStr, 'CURRENT STREAK', Colors.orange),
+                                const SizedBox(width: 8),
+                                _buildMiniMetricBox(tokens, LucideIcons.trophy, bestStreakStr, 'BEST STREAK', Colors.amber),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Tabs: MONTHLY TRENDS | WEEKLY ACTIVITY
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => setState(() => _analyticsTab = 0),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _analyticsTab == 0 ? tokens.surfaceCard : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'MONTHLY TRENDS',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: _analyticsTab == 0 ? tokens.contentPrimary : tokens.contentTertiary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => setState(() => _analyticsTab = 1),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _analyticsTab == 1 ? tokens.surfaceCard : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'WEEKLY ACTIVITY',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: _analyticsTab == 1 ? tokens.contentPrimary : tokens.contentTertiary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Today's Accuracy Card ---
-  Widget _buildTodayAccuracyCard(ThemeData theme) {
-    return CustomCard(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        children: [
-          Text(
-            'TODAY\'S ACCURACY',
-            style: GoogleFonts.plusJakartaSans(
-              color: const Color(0xFF7A8499),
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
-              fontSize: 9.0,
-            ),
-          ),
-          const SizedBox(height: 20.0),
-          Center(
-            child: SizedBox(
-              width: 130.0,
-              height: 130.0,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 130.0,
-                    height: 130.0,
-                    child: CircularProgressIndicator(
-                      value: 1.0,
-                      strokeWidth: 10.0,
-                      backgroundColor: AppColors.surfaceContainerHigh,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00D9A5)),
-                    ),
-                  ),
-                  Text(
-                    '100%',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 32.0,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1E2235),
-                    ),
-                  ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 20.0),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE6FBF5),
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            child: Text(
-              'Elite Performance',
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF00D9A5),
-                fontWeight: FontWeight.w800,
-                fontSize: 11.0,
-              ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-  // --- Deep Work Card ---
-  Widget _buildDeepWorkCard(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(24.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B1E2E),
-        borderRadius: BorderRadius.circular(24.0),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'DEEP WORK',
-            style: GoogleFonts.plusJakartaSans(
-              color: Colors.white38,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
-              fontSize: 9.0,
-            ),
-          ),
-          const SizedBox(height: 16.0),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                _latestState?.weeklyFocusDuration ?? '0h 0m',
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white,
-                  fontSize: 38.0,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24.0),
-          ElevatedButton(
-            onPressed: () => const TabNavigationNotification(4).dispatch(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.1),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 16.0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14.0),
-              ),
-              elevation: 0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Start Session',
-                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 14.0),
-                ),
-                const Icon(Icons.chevron_right, size: 18.0),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Task Productivity Card ---
-  Widget _buildTaskAnalyticsCard(ThemeData theme) {
-    return CustomCard(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34.0,
-                height: 34.0,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2E6FF),
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                child: const Icon(Icons.analytics_outlined, color: Color(0xFFBF5AF2), size: 18.0),
-              ),
-              const SizedBox(width: 10.0),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ANALYTICS',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 8.5,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  Text(
-                    'Task Productivity',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16.0,
-                      color: const Color(0xFF1E2235),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 24.0),
-          Center(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 36.0, horizontal: 24.0),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAFCFF),
-                borderRadius: BorderRadius.circular(16.0),
-                border: Border.all(color: const Color(0xFFE5E9F2)),
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 48.0,
-                    height: 48.0,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF0F3F8),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.bolt_outlined, size: 24.0, color: Color(0xFF8C97AB)),
-                  ),
-                  const SizedBox(height: 12.0),
-                  Text(
-                    'No tasks forged yet',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16.0,
-                      color: const Color(0xFF1E2235),
-                    ),
-                  ),
-                  const SizedBox(height: 4.0),
-                  Text(
-                    'Create your first task in Today\'s Forge to activate Task Analytics.',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontSize: 12.0,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Main Targets Section ---
-  Widget _buildMainTargetsSection(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildMiniMetricBox(AppThemeTokens tokens, IconData icon, String value, String label, Color iconColor) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: tokens.surfaceElevated,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
           children: [
+            Icon(icon, size: 14, color: iconColor),
+            const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ACTIVE GOALS',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: const Color(0xFF8C97AB),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 8.5,
-                    letterSpacing: 0.8,
-                  ),
+                  value,
+                  style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 13),
                 ),
                 Text(
-                  'Main Targets',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18.0,
-                    color: const Color(0xFF1E2235),
-                  ),
+                  label,
+                  style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w700, fontSize: 8),
                 ),
               ],
-            ),
-            TextButton(
-              onPressed: () => const TabNavigationNotification(1).dispatch(context),
-              child: Text(
-                'View All Systems',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12.0,
-                  color: AppColors.primary,
-                ),
-              ),
             ),
           ],
         ),
-        const SizedBox(height: 16.0),
-        CustomCard(
-          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 24.0),
-          child: Center(
-            child: Column(
-              children: [
-                Container(
-                  width: 48.0,
-                  height: 48.0,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF0F3F8),
-                    shape: BoxShape.circle,
+      ),
+    );
+  }
+
+
+
+  // ─────────────────────────────────────────────────────────────
+  // 8. RIGHT COLUMN: INTERACTIVE CREATIVE CALENDAR & ACTIVITY MAP
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildInteractiveCalendarSection(BuildContext context, AppThemeTokens tokens) {
+    return BlocBuilder<GoalsBloc, GoalsState>(
+      builder: (context, goalsState) {
+        return BlocBuilder<TasksBloc, TasksState>(
+          builder: (context, tasksState) {
+            return BlocBuilder<EventsBloc, EventsState>(
+              builder: (context, eventsState) {
+                List<ScheduledEvent> allEvents = [];
+                if (eventsState is EventsLoaded) {
+                  allEvents = eventsState.allEvents;
+                }
+
+                List<Goal> goals = [];
+                if (goalsState is GoalsLoaded) {
+                  goals = goalsState.goals;
+                }
+
+                List<Task> tasks = [];
+                if (tasksState is TasksLoaded) {
+                  tasks = tasksState.tasks;
+                }
+
+                final selectedDateStr = AppDateUtils.toLocalYYYYMMDD(_selectedCalendarDate);
+                final eventsForSelectedDate = allEvents.where((e) => e.eventDate == selectedDateStr).toList();
+
+                final year = _focusedCalendarMonth.year;
+                final month = _focusedCalendarMonth.month;
+                final firstDayOfMonth = DateTime(year, month, 1);
+                final daysInMonth = DateTime(year, month + 1, 0).day;
+
+                final startingWeekday = firstDayOfMonth.weekday; // 1 (Mon) to 7 (Sun)
+                final leadingEmptyDays = startingWeekday - 1;
+
+                final monthNames = [
+                  'January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December'
+                ];
+                final monthName = monthNames[month - 1];
+
+                return CustomCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row (Month Title + Navigation)
+                      Row(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'CREATIVE CALENDAR & ACTIVITY',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: tokens.contentTertiary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 9,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              Text(
+                                '$monthName $year',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: tokens.contentPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                _focusedCalendarMonth = DateTime(year, month - 1, 1);
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Icon(LucideIcons.chevronLeft, size: 18, color: tokens.contentPrimary),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                _focusedCalendarMonth = DateTime(year, month + 1, 1);
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Icon(LucideIcons.chevronRight, size: 18, color: tokens.contentPrimary),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Weekday Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((dayStr) {
+                          return Expanded(
+                            child: Text(
+                              dayStr,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: tokens.contentTertiary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Days Grid
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: leadingEmptyDays + daysInMonth,
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 7,
+                          mainAxisSpacing: 6,
+                          crossAxisSpacing: 6,
+                          childAspectRatio: 1.0,
+                        ),
+                        itemBuilder: (context, index) {
+                          if (index < leadingEmptyDays) {
+                            return const SizedBox.shrink();
+                          }
+
+                          final dayNumber = index - leadingEmptyDays + 1;
+                          final dayDate = DateTime(year, month, dayNumber);
+                          final dayDateStr = AppDateUtils.toLocalYYYYMMDD(dayDate);
+                          final isToday = AppDateUtils.toLocalYYYYMMDD(DateTime.now()) == dayDateStr;
+                          final isSelected = selectedDateStr == dayDateStr;
+
+                          // Compute completion percentage for dayDateStr
+                          double completionRatio = 0.0;
+                          final goalsDone = goals.where((g) => g.completedDates.contains(dayDateStr)).length;
+                          final tasksDone = tasks.where((t) => (t.completed && t.targetDate == dayDateStr) || t.completedDates.contains(dayDateStr)).length;
+                          final eventsDone = allEvents.where((e) => e.eventDate == dayDateStr && e.completed).length;
+                          final totalEventsForDay = allEvents.where((e) => e.eventDate == dayDateStr).length;
+
+                          if (goals.isNotEmpty || tasks.isNotEmpty || totalEventsForDay > 0) {
+                            final totalPossible = (goals.isNotEmpty ? goals.length : 0) + (tasks.isNotEmpty ? tasks.length : 0) + totalEventsForDay;
+                            final totalDone = goalsDone + tasksDone + eventsDone;
+                            if (totalPossible > 0) {
+                              completionRatio = (totalDone / totalPossible).clamp(0.0, 1.0);
+                            }
+                          }
+
+                          // Color scale: 100% Green, 50% Blue, 25% Yellow, 0% White
+                          Color bgCellColor = tokens.surfaceElevated;
+                          Color textCellColor = tokens.contentPrimary;
+
+                          if (isSelected) {
+                            bgCellColor = AppColors.primary;
+                            textCellColor = Colors.white;
+                          } else if (completionRatio >= 1.0) {
+                            bgCellColor = const Color(0xFF4CAF50); // 100% Green
+                            textCellColor = Colors.white;
+                          } else if (completionRatio >= 0.50) {
+                            bgCellColor = const Color(0xFF2196F3); // 50% Blue
+                            textCellColor = Colors.white;
+                          } else if (completionRatio >= 0.25) {
+                            bgCellColor = const Color(0xFFFFC107); // 25% Yellow
+                            textCellColor = const Color(0xFF1E1B4B); // Dark text on yellow
+                          } else if (isToday) {
+                            bgCellColor = AppColors.primary.withValues(alpha: 0.15);
+                            textCellColor = AppColors.primary;
+                          }
+
+                          final hasEvent = totalEventsForDay > 0;
+
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                _selectedCalendarDate = dayDate;
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: bgCellColor,
+                                borderRadius: BorderRadius.circular(8),
+                                border: isToday && !isSelected && completionRatio == 0.0
+                                    ? Border.all(color: AppColors.primary, width: 1.5)
+                                    : null,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '$dayNumber',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: textCellColor,
+                                      fontWeight: isSelected || isToday || completionRatio > 0 ? FontWeight.w900 : FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  if (hasEvent) ...[
+                                    const SizedBox(height: 2),
+                                    Container(
+                                      width: 4,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: (isSelected || completionRatio >= 0.50) ? Colors.white : AppColors.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Completion Status Legend Bar (100% Green, 50% Blue, 25% Yellow, 0% White)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: tokens.surfaceElevated,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildLegendTag(color: const Color(0xFF4CAF50), label: '100%', tokens: tokens),
+                            _buildLegendTag(color: const Color(0xFF2196F3), label: '50%', tokens: tokens),
+                            _buildLegendTag(color: const Color(0xFFFFC107), label: '25%', tokens: tokens),
+                            _buildLegendTag(color: tokens.borderDefault, label: '0%', tokens: tokens),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Selected Date Header + Add Idea Button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'SELECTED DATE',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: tokens.contentTertiary,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                                Text(
+                                  _formatSelectedDateHeader(_selectedCalendarDate),
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: tokens.contentPrimary,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              elevation: 0,
+                            ),
+                            onPressed: () => _showAddIdeaModal(context, _selectedCalendarDate),
+                            icon: const Icon(LucideIcons.plus, size: 12),
+                            label: Text(
+                              'Add Idea',
+                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Events/Ideas list for selected day
+                      if (eventsForSelectedDate.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: tokens.surfaceElevated,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(LucideIcons.lightbulb, size: 16, color: tokens.iconSubtle),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'No creative ideas or events for this day yet.',
+                                  style: TextStyle(color: tokens.contentSecondary, fontSize: 11),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Column(
+                          children: eventsForSelectedDate.map((event) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: tokens.surfaceElevated,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(LucideIcons.sparkles, size: 14, color: AppColors.primary),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          event.title,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            color: tokens.contentPrimary,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        if (event.description != null && event.description!.isNotEmpty)
+                                          Text(
+                                            event.description!,
+                                            style: TextStyle(color: tokens.contentSecondary, fontSize: 10),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () {
+                                      context.read<EventsBloc>().add(DeleteEvent(event.id));
+                                    },
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: Icon(LucideIcons.trash2, size: 14, color: Colors.redAccent),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                    ],
                   ),
-                  child: const Icon(Icons.track_changes, size: 24.0, color: Color(0xFF8C97AB)),
-                ),
-                const SizedBox(height: 12.0),
-                Text(
-                  'No systems defined',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16.0,
-                    color: const Color(0xFF1E2235),
-                  ),
-                ),
-                const SizedBox(height: 4.0),
-                Text(
-                  'Forge your first goal to start tracking.',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: const Color(0xFF8C97AB),
-                    fontSize: 12.0,
-                  ),
-                ),
-              ],
-            ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildLegendTag({required Color color, required String label, required AppThemeTokens tokens}) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            color: tokens.contentSecondary,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],
     );
   }
 
-  // --- Right Side Panel Widgets ---
-  Widget _buildQuickThoughtsCard(ThemeData theme) {
-    final count = _latestState?.quickThoughtsCount ?? 0;
-
-    return CustomCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-      child: Row(
-        children: [
-          Container(
-            width: 36.0,
-            height: 36.0,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF2E6FF),
-              borderRadius: BorderRadius.circular(10.0),
-            ),
-            child: const Icon(
-              Icons.psychology_alt_outlined,
-              color: Color(0xFFBF5AF2),
-              size: 20.0,
-            ),
-          ),
-          const SizedBox(width: 12.0),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Quick Thoughts',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1E2235),
-                      ),
-                    ),
-                    const SizedBox(width: 6.0),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F3F8),
-                        borderRadius: BorderRadius.circular(4.0),
-                      ),
-                      child: Text(
-                        '$count/5',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF8C97AB),
-                          fontSize: 8.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2.0),
-                Text(
-                  'Capture a spark before it fades...',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: const Color(0xFF8C97AB),
-                    fontSize: 11.0,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.keyboard_arrow_down, color: Color(0xFF8C97AB), size: 20.0),
-        ],
-      ),
-    );
+  String _formatSelectedDateHeader(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final weekdayStr = days[date.weekday - 1];
+    final monthStr = months[date.month - 1];
+    return '$weekdayStr, $monthStr ${date.day}, ${date.year}';
   }
 
-  Widget _buildUpcomingEventsCard(ThemeData theme) {
-    return CustomCard(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  void _showAddIdeaModal(BuildContext context, DateTime targetDate) {
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
+    final dateStr = AppDateUtils.toLocalYYYYMMDD(targetDate);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final tokens = AppThemeTokens.of(dialogContext);
+        return AlertDialog(
+          backgroundColor: tokens.surfaceElevated,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Add Creative Idea / Event',
+            style: GoogleFonts.plusJakartaSans(
+              color: tokens.contentPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 34.0,
-                    height: 34.0,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: const Icon(Icons.calendar_today, color: AppColors.primary, size: 16.0),
-                  ),
-                  const SizedBox(width: 10.0),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Upcoming Events',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14.0,
-                          color: const Color(0xFF1E2235),
-                        ),
-                      ),
-                      Text(
-                        'No events today',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: const Color(0xFF8C97AB),
-                          fontSize: 11.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              Text(
+                'Date: $dateStr',
+                style: TextStyle(color: tokens.contentSecondary, fontSize: 12),
               ),
-              const Icon(Icons.chevron_right, color: Color(0xFF8C97AB), size: 18.0),
+              const SizedBox(height: 14),
+              TextField(
+                controller: titleController,
+                autofocus: true,
+                style: TextStyle(color: tokens.contentPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Title / Creative Idea',
+                  labelStyle: TextStyle(color: tokens.contentSecondary),
+                  hintText: 'e.g. Design new dashboard concept',
+                  hintStyle: TextStyle(color: tokens.iconSubtle),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descController,
+                style: TextStyle(color: tokens.contentPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Notes (optional)',
+                  labelStyle: TextStyle(color: tokens.contentSecondary),
+                  hintText: 'Add details or inspiration...',
+                  hintStyle: TextStyle(color: tokens.iconSubtle),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 24.0),
-          Center(
-            child: Column(
-              children: [
-                const Icon(Icons.calendar_today_outlined, color: Color(0xFFCBD5E1), size: 28.0),
-                const SizedBox(height: 8.0),
-                Text(
-                  'No upcoming events scheduled',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: const Color(0xFF8C97AB),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.0,
-                  ),
-                ),
-                const SizedBox(height: 8.0),
-                TextButton(
-                  onPressed: () => const TabNavigationNotification(2).dispatch(context),
-                  child: Text(
-                    '+ Schedule your first event',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12.0,
-                    ),
-                  ),
-                ),
-              ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('Cancel', style: TextStyle(color: tokens.contentSecondary)),
             ),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                final title = titleController.text.trim();
+                if (title.isNotEmpty) {
+                  final newEvent = ScheduledEvent(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    title: title,
+                    description: descController.text.trim(),
+                    eventDate: dateStr,
+                    createdAt: DateTime.now().toIso8601String(),
+                  );
+                  context.read<EventsBloc>().add(CreateEvent(newEvent));
+                  context.read<NotesBloc>().add(
+                        CreateQuickThoughtEvent(
+                          QuickThought(
+                            id: DateTime.now().millisecondsSinceEpoch.toString(),
+                            content: title,
+                            createdAt: DateTime.now().toIso8601String(),
+                          ),
+                        ),
+                      );
+                }
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Save Idea'),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildWeeklyPerformanceCard(ThemeData theme) {
-    final bestDayStr = _latestState?.bestDay ?? '2026-07-24';
-
+  // ─────────────────────────────────────────────────────────────
+  // 9. RIGHT COLUMN: WEEKLY PERFORMANCE
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildWeeklyPerformanceCard(BuildContext context, AppThemeTokens tokens, DashboardLoaded loaded) {
     return CustomCard(
-      padding: const EdgeInsets.all(20.0),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1216,148 +1690,98 @@ class _HomePageState extends State<HomePage> {
               Text(
                 'Weekly Performance',
                 style: GoogleFonts.plusJakartaSans(
+                  color: tokens.contentPrimary,
                   fontWeight: FontWeight.w800,
-                  fontSize: 15.0,
-                  color: const Color(0xFF1E2235),
+                  fontSize: 14,
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8.0),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   'LAST 7 DAYS',
                   style: GoogleFonts.plusJakartaSans(
                     color: AppColors.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 8.5,
-                    letterSpacing: 0.5,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 9,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16.0),
+          const SizedBox(height: 14),
+
           Row(
             children: [
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(14.0),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F3F8),
-                    borderRadius: BorderRadius.circular(14.0),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_outlined, color: AppColors.primary, size: 14.0),
-                          const SizedBox(width: 4.0),
-                          Text(
-                            'ACCURACY',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: const Color(0xFF8C97AB),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 8.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8.0),
-                      Text(
-                        '0%',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 24.0,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1E2235),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ACCURACY',
+                      style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w800, fontSize: 9),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${(loaded.weeklyAccuracy * 100).toInt()}%',
+                      style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 20),
+                    ),
+                    Text(
+                      '↘ -5% vs last wk',
+                      style: GoogleFonts.plusJakartaSans(color: Colors.red.shade700, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10.0),
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(14.0),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F3F8),
-                    borderRadius: BorderRadius.circular(14.0),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.schedule, color: Colors.orange, size: 14.0),
-                          const SizedBox(width: 4.0),
-                          Text(
-                            'FOCUS',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: const Color(0xFF8C97AB),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 8.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8.0),
-                      Text(
-                        '0h 0m',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 20.0,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1E2235),
-                        ),
-                      ),
-                      Text(
-                        'DEEP WORK',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: const Color(0xFF8C97AB),
-                          fontSize: 7.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'FOCUS',
+                      style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w800, fontSize: 9),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      loaded.weeklyFocusDuration,
+                      style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 20),
+                    ),
+                    Text(
+                      'DEEP WORK',
+                      style: GoogleFonts.plusJakartaSans(color: tokens.contentSecondary, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12.0),
+          const SizedBox(height: 14),
+
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F3F8),
-              borderRadius: BorderRadius.circular(12.0),
+              color: tokens.surfaceElevated,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today, color: Color(0xFF8C97AB), size: 14.0),
-                    const SizedBox(width: 8.0),
+                    const Icon(LucideIcons.calendar, size: 14, color: AppColors.primary),
+                    const SizedBox(width: 8),
                     Text(
                       'Best Day',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12.0,
-                        color: const Color(0xFF1E2235),
-                      ),
+                      style: GoogleFonts.plusJakartaSans(color: tokens.contentSecondary, fontWeight: FontWeight.w700, fontSize: 11),
                     ),
                   ],
                 ),
                 Text(
-                  bestDayStr,
-                  style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.0,
-                  ),
+                  loaded.bestDay,
+                  style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 11),
                 ),
               ],
             ),
@@ -1367,596 +1791,178 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildGoalActivityCard(ThemeData theme) {
-    return CustomCard(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 28.0,
-                height: 28.0,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: const Icon(Icons.bolt, color: AppColors.primary, size: 16.0),
-              ),
-              const SizedBox(width: 8.0),
-              Text(
-                'GOAL ACTIVITY',
-                style: GoogleFonts.plusJakartaSans(
-                  color: const Color(0xFF8C97AB),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 8.5,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20.0),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
-              child: Column(
-                children: [
-                  Text(
-                    'No activity data yet.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13.0,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1E2235),
-                    ),
-                  ),
-                  const SizedBox(height: 4.0),
-                  Text(
-                    'Start completing habits to see your distribution.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontSize: 11.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ─────────────────────────────────────────────────────────────
+  // 10. RIGHT COLUMN: GOAL ACTIVITY DONUT CHART
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildGoalActivityDonutCard(BuildContext context, AppThemeTokens tokens) {
+    return BlocBuilder<GoalsBloc, GoalsState>(
+      builder: (context, state) {
+        List<Goal> goals = [];
+        if (state is GoalsLoaded) {
+          goals = state.goals;
+        }
 
-  Widget _buildConsistencyMapWidget(ThemeData theme) {
-    return CustomCard(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'CONSISTENCY MAP',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 8.5,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  Text(
-                    '30-Day Activity',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15.0,
-                      color: const Color(0xFF1E2235),
-                    ),
-                  ),
-                  Text(
-                    'Task & habit completion accuracy per day',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontSize: 10.0,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'ACCURACY',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 8.0,
-                    ),
-                  ),
-                  Text(
-                    '100%',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF00D9A5),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.0,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 14.0),
+        final double totalProgress = goals.fold(0.0, (sum, g) => sum + g.progress);
+        final topGoal = goals.isNotEmpty
+            ? goals.reduce((a, b) => a.progress >= b.progress ? a : b)
+            : null;
+        final int topPct = (totalProgress > 0 && topGoal != null)
+            ? ((topGoal.progress / totalProgress) * 100).toInt()
+            : 0;
 
-          // Sub-switcher Buttons (TASKS / GOALS / FOCUS)
-          Container(
-            padding: const EdgeInsets.all(4.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F3F8),
-              borderRadius: BorderRadius.circular(10.0),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8.0),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x0A000000), blurRadius: 4.0),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.check_circle_outline, size: 12.0, color: Color(0xFF1E2235)),
-                        const SizedBox(width: 4.0),
-                        Text(
-                          'TASKS',
-                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 10.0, color: const Color(0xFF1E2235)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'GOALS',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 10.0, color: const Color(0xFF8C97AB)),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'FOCUS',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 10.0, color: const Color(0xFF8C97AB)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16.0),
+        final legendColors = [
+          AppColors.primary,
+          Colors.green,
+          Colors.orange,
+          Colors.amber,
+          Colors.purple,
+        ];
 
-          // 30-Day Dot Matrix Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(24, (i) {
-              final isToday = i == 23;
-              return Container(
-                width: 6.0,
-                height: 6.0,
-                decoration: BoxDecoration(
-                  color: isToday ? const Color(0xFF00D9A5) : const Color(0xFFE2E8F0),
-                  shape: BoxShape.circle,
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 6.0),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('30D AGO', style: GoogleFonts.plusJakartaSans(fontSize: 8.0, fontWeight: FontWeight.bold, color: const Color(0xFF8C97AB))),
-              Text('TODAY', style: GoogleFonts.plusJakartaSans(fontSize: 8.0, fontWeight: FontWeight.bold, color: const Color(0xFF8C97AB))),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGoalHeatmapWidget(ThemeData theme) {
-    return CustomCard(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return CustomCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 28.0,
-                    height: 28.0,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE6FBF5),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: const Icon(Icons.verified, color: Color(0xFF00D9A5), size: 16.0),
-                  ),
-                  const SizedBox(width: 8.0),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'GOAL CONSISTENCY',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: const Color(0xFF8C97AB),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 8.5,
-                          letterSpacing: 0.8,
-                        ),
+                        'ANALYTICS',
+                        style: GoogleFonts.plusJakartaSans(color: tokens.contentTertiary, fontWeight: FontWeight.w800, fontSize: 9),
                       ),
                       Text(
-                        '30-Day Goal Heatmap',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15.0,
-                          color: const Color(0xFF1E2235),
-                        ),
+                        'Goal Activity',
+                        style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 14),
                       ),
                     ],
                   ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'GOAL ACCURACY',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 8.0,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                  ),
-                  Text(
-                    '0%',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF1E2235),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.0,
-                    ),
-                  ),
-                  Text(
-                    '30-day avg',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8C97AB),
-                      fontSize: 7.5,
+                    child: Text(
+                      'MOST ACTIVE',
+                      style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 9),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 4.0),
-          Text(
-            'Goal completion rule satisfaction per day',
-            style: GoogleFonts.plusJakartaSans(
-              color: const Color(0xFF8C97AB),
-              fontSize: 10.0,
-            ),
-          ),
-          const SizedBox(height: 16.0),
+              const SizedBox(height: 16),
 
-          // Dot Matrix Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(24, (i) {
-              final isToday = i == 23;
-              return Container(
-                width: 6.0,
-                height: 6.0,
+              Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 110,
+                      height: 110,
+                      child: CircularProgressIndicator(
+                        value: (topPct / 100.0).clamp(0.0, 1.0),
+                        strokeWidth: 12,
+                        backgroundColor: const Color(0xFFE2E8F0),
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$topPct%',
+                          style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 18),
+                        ),
+                        Text(
+                          topGoal?.title ?? 'No Activity',
+                          style: TextStyle(color: tokens.contentSecondary, fontSize: 9, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              if (goals.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No activity data recorded yet.',
+                      style: TextStyle(color: tokens.contentSecondary, fontSize: 11),
+                    ),
+                  ),
+                )
+              else
+                ...goals.take(5).toList().asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final g = entry.value;
+                  final pct = totalProgress > 0 ? ((g.progress / totalProgress) * 100).toInt() : 0;
+                  final color = legendColors[idx % legendColors.length];
+                  return _buildDonutLegendRow(tokens, g.title, '$pct%', color);
+                }),
+              const SizedBox(height: 12),
+
+              Container(
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isToday ? const Color(0xFF00D9A5) : const Color(0xFFE2E8F0),
-                  shape: BoxShape.circle,
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            }),
-          ),
-          const SizedBox(height: 6.0),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('30D AGO', style: GoogleFonts.plusJakartaSans(fontSize: 8.0, fontWeight: FontWeight.bold, color: const Color(0xFF8C97AB))),
-              Text('TODAY', style: GoogleFonts.plusJakartaSans(fontSize: 8.0, fontWeight: FontWeight.bold, color: const Color(0xFF8C97AB))),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MOST ACTIVE GOAL',
+                          style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 9),
+                        ),
+                        Text(
+                          topGoal?.title ?? 'None',
+                          style: GoogleFonts.plusJakartaSans(color: const Color(0xFF1E1B4B), fontWeight: FontWeight.w900, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '$topPct%\nACTIVITY',
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 16.0),
-          Center(
-            child: Text(
-              'Set up goals with habits to track consistency',
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF8C97AB),
-                fontWeight: FontWeight.w700,
-                fontSize: 11.0,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTaskOverviewWidget(ThemeData theme) {
-    return CustomCard(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildDonutLegendRow(AppThemeTokens tokens, String title, String pct, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
         children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(color: tokens.contentSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
           Text(
-            'TASK OVERVIEW',
-            style: GoogleFonts.plusJakartaSans(
-              color: const Color(0xFF8C97AB),
-              fontWeight: FontWeight.w800,
-              fontSize: 8.5,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 14.0),
-          Row(
-            children: [
-              Expanded(child: _buildMiniStat(theme, '0', 'CURRENT ACTIVE TASKS', Icons.bolt, const Color(0xFFEEF2FF), AppColors.primary)),
-              const SizedBox(width: 8.0),
-              Expanded(child: _buildMiniStat(theme, '0', 'CURRENT COMPLETED TASKS', Icons.check_circle, const Color(0xFFE6FBF5), const Color(0xFF00D9A5))),
-              const SizedBox(width: 8.0),
-              Expanded(child: _buildMiniStat(theme, '0d', 'HIGHEST TASK COMPLETION STREAK', Icons.local_fire_department, const Color(0xFFFFF4E5), Colors.orange)),
-            ],
-          ),
-          const SizedBox(height: 16.0),
-          Row(
-            children: [
-              const Icon(Icons.local_fire_department, color: Colors.orange, size: 14.0),
-              const SizedBox(width: 4.0),
-              Text(
-                'TOP SYSTEM STREAKS',
-                style: GoogleFonts.plusJakartaSans(
-                  color: const Color(0xFF8C97AB),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 8.0,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8.0),
-          Center(
-            child: Text(
-              'No active task streaks today — keep completing tasks!',
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF8C97AB),
-                fontStyle: FontStyle.italic,
-                fontSize: 10.5,
-              ),
-            ),
+            pct,
+            style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w800, fontSize: 11),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMiniStat(ThemeData theme, String val, String label, IconData icon, Color iconBg, Color iconColor) {
-    final tokens = AppThemeTokens.of(context);
-    return Container(
-      padding: const EdgeInsets.all(10.0),
-      decoration: BoxDecoration(
-        color: tokens.surfaceElevated,
-        borderRadius: BorderRadius.circular(10.0),
-        border: Border.all(color: tokens.borderDefault),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 26.0,
-            height: 26.0,
-            decoration: BoxDecoration(
-              color: iconBg,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 14.0, color: iconColor),
-          ),
-          const SizedBox(height: 8.0),
-          Text(val, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16.0, color: tokens.contentSecondary)),
-          const SizedBox(height: 2.0),
-          Text(label, textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 7.0, color: tokens.contentTertiary, fontWeight: FontWeight.w800)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFooterWidget(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Center(
-          child: Text(
-            '© 2026 GOALFORGE STRATEGY',
-            style: GoogleFonts.plusJakartaSans(fontSize: 9.0, fontWeight: FontWeight.w800, color: const Color(0xFF8C97AB)),
-          ),
-        ),
-        const SizedBox(height: 2.0),
-        Center(
-          child: Text(
-            'ADVANCED PRODUCTIVITY SUITE',
-            style: GoogleFonts.plusJakartaSans(fontSize: 8.0, fontWeight: FontWeight.w700, color: const Color(0xFF8C97AB)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ==================== GOALS TAB ====================
-  Widget _buildGoalsTab(ThemeData theme, bool isWide) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildTodayAccuracyCard(theme),
-        const SizedBox(height: 16.0),
-        _buildDeepWorkCard(theme),
-        const SizedBox(height: 16.0),
-        _buildUpcomingEventsCard(theme),
-      ],
-    );
-  }
-
-  // ==================== TASKS TAB ====================
-  Widget _buildTasksTab(ThemeData theme) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(20.0),
-            border: Border.all(color: AppColors.surfaceContainerHighest.withValues(alpha: 0.5)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      '0',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 28.0,
-                      ),
-                    ),
-                    const SizedBox(height: 4.0),
-                    Text(
-                      'TOTAL',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: AppColors.secondary,
-                        fontSize: 10.0,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 1.0,
-                height: 40.0,
-                color: Colors.grey.withValues(alpha: 0.2),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      '0',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 28.0,
-                      ),
-                    ),
-                    const SizedBox(height: 4.0),
-                    Text(
-                      'DONE',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: AppColors.secondary,
-                        fontSize: 10.0,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 1.0,
-                height: 40.0,
-                color: Colors.grey.withValues(alpha: 0.2),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      '100%',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: AppColors.tertiaryContainer,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 28.0,
-                      ),
-                    ),
-                    const SizedBox(height: 4.0),
-                    Text(
-                      'FOCUS',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: AppColors.secondary,
-                        fontSize: 10.0,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 48.0),
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 96.0,
-                    height: 96.0,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.05),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Container(
-                    width: 72.0,
-                    height: 72.0,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainer,
-                      borderRadius: BorderRadius.circular(24.0),
-                      border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.3)),
-                    ),
-                    child: const Icon(Icons.calendar_today, color: AppColors.outlineVariant, size: 36.0),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24.0),
-              Text(
-                'Your forge is silent.',
-                style: GoogleFonts.plusJakartaSans(
-                  color: AppColors.secondary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8.0),
-              Text(
-                'Add a task to start crushing your day.',
-                style: GoogleFonts.plusJakartaSans(
-                  color: AppColors.outline,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

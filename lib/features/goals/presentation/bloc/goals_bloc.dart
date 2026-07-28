@@ -8,6 +8,7 @@ import 'goals_state.dart';
 class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
   final GoalsRepository _goalsRepository;
   StreamSubscription? _goalsSubscription;
+  StreamSubscription? _habitsSubscription; // watches boxHabits for habit adds/edits
 
   GoalsBloc({
     required GoalsRepository goalsRepository,
@@ -28,9 +29,20 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
   void _onSubscribeToGoals(SubscribeToGoals event, Emitter<GoalsState> emit) {
     emit(GoalsLoading());
     _goalsSubscription?.cancel();
+    _habitsSubscription?.cancel();
+
+    // Rebuild when the goals box changes (goal create/update/delete)
     _goalsSubscription = _goalsRepository.watchGoals().skip(1).listen((_) {
       if (!isClosed) add(const _GoalsDataChanged());
     });
+
+    // Rebuild when the habits box changes (habit add/update/delete).
+    // This ensures that adding a habit to a newly-created goal refreshes the
+    // GoalsBloc state immediately without needing a full SubscribeToGoals().
+    _habitsSubscription = _goalsRepository.watchAllHabits().skip(1).listen((_) {
+      if (!isClosed) add(const _GoalsDataChanged());
+    });
+
     _recalculateAndEmit(emit);
   }
 
@@ -170,6 +182,7 @@ class GoalsBloc extends Bloc<GoalsEvent, GoalsState> {
   @override
   Future<void> close() {
     _goalsSubscription?.cancel();
+    _habitsSubscription?.cancel();
     return super.close();
   }
 }

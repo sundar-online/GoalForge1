@@ -15,6 +15,7 @@ class TasksLoading extends TasksState {}
 
 class TasksLoaded extends TasksState {
   final List<Task> tasks;
+  final List<Task> allTasks;
   final Map<String, TaskLog> taskLogs;
   final int totalCount;
   final int completedCount;
@@ -24,6 +25,7 @@ class TasksLoaded extends TasksState {
 
   const TasksLoaded({
     required this.tasks,
+    this.allTasks = const [],
     required this.taskLogs,
     this.totalCount = 0,
     this.completedCount = 0,
@@ -32,8 +34,12 @@ class TasksLoaded extends TasksState {
     this.selectedPriority = 'All',
   });
 
+  /// Returns allTasks if populated, otherwise falls back to tasks.
+  List<Task> get effectiveAllTasks => allTasks.isNotEmpty ? allTasks : tasks;
+
   TasksLoaded copyWith({
     List<Task>? tasks,
+    List<Task>? allTasks,
     Map<String, TaskLog>? taskLogs,
     int? totalCount,
     int? completedCount,
@@ -43,6 +49,7 @@ class TasksLoaded extends TasksState {
   }) {
     return TasksLoaded(
       tasks: tasks ?? this.tasks,
+      allTasks: allTasks ?? this.allTasks,
       taskLogs: taskLogs ?? this.taskLogs,
       totalCount: totalCount ?? this.totalCount,
       completedCount: completedCount ?? this.completedCount,
@@ -55,6 +62,7 @@ class TasksLoaded extends TasksState {
   @override
   List<Object?> get props => [
         tasks,
+        allTasks,
         taskLogs,
         totalCount,
         completedCount,

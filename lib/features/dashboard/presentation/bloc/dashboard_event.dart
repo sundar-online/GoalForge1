@@ -3,6 +3,7 @@ import '../../../../core/domain/models/goal.dart';
 import '../../../../core/domain/models/xp_profile.dart';
 import '../../../../core/domain/models/scheduled_event.dart';
 import '../../../../core/services/ai_insights_service.dart';
+import '../../domain/models/coach_intelligence.dart';
 
 abstract class DashboardEvent extends Equatable {
   const DashboardEvent();
@@ -24,6 +25,12 @@ class UpdateDashboardData extends DashboardEvent {
   final String bestDay;
   final List<AiInsight> insights;
 
+  final HeroNextAction? nextBestAction;
+  final AtRiskHabitInfo? atRiskHabit;
+  final GoalAttentionInfo? goalAttention;
+  final RecoveryProtocolInfo? recoveryProtocol;
+  final int disciplineScore;
+
   const UpdateDashboardData({
     this.focusGoal,
     this.habitsLeftToday = 0,
@@ -34,6 +41,11 @@ class UpdateDashboardData extends DashboardEvent {
     this.weeklyFocusDuration = '0h 0m',
     this.bestDay = 'N/A',
     this.insights = const [],
+    this.nextBestAction,
+    this.atRiskHabit,
+    this.goalAttention,
+    this.recoveryProtocol,
+    this.disciplineScore = 85,
   });
 
   @override
@@ -47,5 +59,11 @@ class UpdateDashboardData extends DashboardEvent {
         weeklyFocusDuration,
         bestDay,
         insights,
+        nextBestAction,
+        atRiskHabit,
+        goalAttention,
+        recoveryProtocol,
+        disciplineScore,
       ];
 }
+

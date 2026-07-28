@@ -59,9 +59,21 @@ class ProgressService {
     }
 
     // Step 2: Determine total goal duration in days.
-    final createdAt = DateTime.tryParse(goal.createdAt);
-    final deadline =
+    final createdAtRaw = DateTime.tryParse(goal.createdAt);
+    final deadlineRaw =
         goal.deadline != null ? DateTime.tryParse(goal.deadline!) : null;
+
+    // Strip time component so a goal created at 14:00 on day X with deadline on
+    // day Y still yields (Y - X + 1) full calendar days, not (Y - X) due to
+    // sub-day remainder being truncated by .inDays.
+    final createdAt = createdAtRaw != null
+        ? DateTime(createdAtRaw.year, createdAtRaw.month, createdAtRaw.day)
+        : null;
+    final deadline = deadlineRaw != null
+        ? DateTime(deadlineRaw.year, deadlineRaw.month, deadlineRaw.day)
+        : null;
+    final todayDateOnly = DateTime(
+        DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
     int totalDays;
     if (createdAt != null && deadline != null) {
@@ -69,7 +81,7 @@ class ProgressService {
       totalDays = deadline.difference(createdAt).inDays + 1;
     } else if (createdAt != null) {
       // No deadline: use days elapsed since creation (at least 1)
-      totalDays = DateTime.now().difference(createdAt).inDays + 1;
+      totalDays = todayDateOnly.difference(createdAt).inDays + 1;
     } else {
       totalDays = 1;
     }

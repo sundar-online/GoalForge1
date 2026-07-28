@@ -69,6 +69,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
 
       emit(TasksLoaded(
         tasks: filteredTasks,
+        allTasks: allTasks,
         taskLogs: taskLogs,
         totalCount: totalCount,
         completedCount: completedCount,

@@ -82,7 +82,6 @@ void main() {
 
     test('calculateGoalProgress returns 0% for new goal with no completed dates', () {
       final goal = makeGoal(mode: 'ALL', completedDates: const []);
-      // 0 completed days, goal spans 20→29 July = 10 days
       final progress = service.calculateGoalProgress(
         goal: goal,
         habits: habits, // only 1/2 done today → does not count
@@ -115,6 +114,74 @@ void main() {
         todayDateStr: todayStr,
       );
       expect(progress, equals(0.0));
+    });
+
+    // ── Bug 1 Regression ─────────────────────────────────────────────────────
+    // Goals stored with a full ISO timestamp (14:00, 23:59) should compute the
+    // same totalDays as a goal stored with midnight — the time component must
+    // be stripped before calling .difference().inDays.
+    group('Bug 1 – date-only totalDays (no off-by-one from creation time)', () {
+      test('goal created at 14:00 on Jul 27, deadline Jul 31 = 5 days total', () {
+        // Before the fix, deadline(midnight)−createdAt(14:00) = 3.4 days → .inDays = 3 → total = 4
+        // After the fix, both stripped to date-only → 4 days diff → total = 5
+        final goal = makeGoal(
+          createdAt: '2026-07-27T14:00:00.000',
+          deadline: '2026-07-31',
+          completedDates: const [],
+        );
+        final allDoneHabits = [
+          habits[0].copyWith(completedDates: ['2026-07-27']),
+          habits[1].copyWith(completedDates: ['2026-07-27']),
+        ];
+        // 1 completed day out of 5 total = 20%
+        final progress = service.calculateGoalProgress(
+          goal: goal,
+          habits: allDoneHabits,
+          todayDateStr: '2026-07-27',
+        );
+        expect(progress, equals(20.0));
+      });
+
+      test('goal created at 23:59 on Jul 27, deadline Jul 31 = 5 days total', () {
+        final goal = makeGoal(
+          createdAt: '2026-07-27T23:59:59.999',
+          deadline: '2026-07-31',
+          completedDates: ['2026-07-27'],
+        );
+        // 1 pre-existing completed date, no habits → isDailyGoalMet = false
+        // so today (Jul 28) doesn't add to completedDates
+        // result = 1/5 = 20%
+        final progress = service.calculateGoalProgress(
+          goal: goal,
+          habits: const [],
+          todayDateStr: '2026-07-28',
+        );
+        expect(progress, equals(20.0));
+      });
+
+      test('date-only totalDays: goal created midnight yields same result as mid-day', () {
+        final goalMidnight = makeGoal(
+          createdAt: '2026-07-27T00:00:00.000',
+          deadline: '2026-07-31',
+          completedDates: const [],
+        );
+        final goalMidDay = makeGoal(
+          createdAt: '2026-07-27T14:30:00.000',
+          deadline: '2026-07-31',
+          completedDates: const [],
+        );
+        final allDone = [
+          habits[0].copyWith(completedDates: ['2026-07-27']),
+          habits[1].copyWith(completedDates: ['2026-07-27']),
+        ];
+        final p1 = service.calculateGoalProgress(
+            goal: goalMidnight, habits: allDone, todayDateStr: '2026-07-27');
+        final p2 = service.calculateGoalProgress(
+            goal: goalMidDay, habits: allDone, todayDateStr: '2026-07-27');
+        // Both must be equal (5-day goal, 1 day completed = 20%)
+        expect(p1, equals(p2));
+        expect(p1, equals(20.0));
+      });
     });
   });
 }
