@@ -13,8 +13,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../core/theme/theme_cubit.dart';
 
-import '../../../auth/presentation/bloc/auth_bloc.dart';
-import '../../../auth/presentation/bloc/auth_event.dart';
 import '../bloc/profile_bloc.dart';
 import '../bloc/profile_event.dart';
 import '../bloc/profile_state.dart';

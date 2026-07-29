@@ -813,47 +813,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildTabButton(String label, IconData icon, bool active, [VoidCallback? onTap]) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-        decoration: BoxDecoration(
-          color: active ? AppColors.inverseSurface : Colors.transparent,
-          borderRadius: BorderRadius.circular(12.0),
-          boxShadow: active
-              ? const [
-                  BoxShadow(
-                    color: Color(0x1F000000),
-                    blurRadius: 4.0,
-                    offset: Offset(0, 2.0),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16.0,
-              color: active ? Colors.white : AppColors.outline,
-            ),
-            const SizedBox(width: 6.0),
-            Text(
-              label,
-              style: TextStyle(
-                color: active ? Colors.white : AppColors.outline,
-                fontWeight: FontWeight.bold,
-                fontSize: 11.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildAlertCard({
     required IconData icon,
     required String text,

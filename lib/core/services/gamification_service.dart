@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_constants.dart';
 import '../domain/models/badge_model.dart';
 import '../domain/models/story_moment.dart';
@@ -115,92 +113,7 @@ class GamificationService {
   }
 
   /// Awards XP, records activity transactions, updates level and evaluates badges.
-  ///
-  /// SAST-10: Uses Firestore [runTransaction] to perform an atomic read-modify-write
-  /// on the XP profile document, eliminating the race condition that previously
-  /// allowed duplicate XP to be awarded on concurrent habit/task completions.
   Future<XPProfile> awardXp(
-    int amount, {
-    String title = 'Activity Completed',
-    String type = 'general',
-    int streakDays = 0,
-    int completedTasksCount = 0,
-    int completedHabitsCount = 0,
-    int focusMinutes = 0,
-    int perfectDaysCount = 0,
-    int completedGoalsCount = 0,
-  }) async {
-    // Fast path: if no repository is wired, fall back to local-only (test/offline mode).
-    if (_gamificationRepository == null) {
-      return _awardXpLocal(
-        amount,
-        title: title,
-        type: type,
-        streakDays: streakDays,
-        completedTasksCount: completedTasksCount,
-        completedHabitsCount: completedHabitsCount,
-        focusMinutes: focusMinutes,
-        perfectDaysCount: perfectDaysCount,
-        completedGoalsCount: completedGoalsCount,
-      );
-    }
-
-    // SAST-10: Attempt atomic Firestore transaction for the connected path.
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final docRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('xp')
-            .doc('profile');
-
-        late XPProfile updatedProfile;
-        await FirebaseFirestore.instance.runTransaction((txn) async {
-          final snapshot = await txn.get(docRef);
-          // Deserialise current profile inside the transaction to read the
-          // latest committed value, not a potentially stale local cache.
-          final currentProfile = snapshot.exists && snapshot.data() != null
-              ? XPProfile.fromJson(snapshot.data()!)
-              : const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
-
-          updatedProfile = _buildUpdatedProfile(
-            currentProfile,
-            amount,
-            title: title,
-            type: type,
-            streakDays: streakDays,
-            completedTasksCount: completedTasksCount,
-            completedHabitsCount: completedHabitsCount,
-            focusMinutes: focusMinutes,
-            perfectDaysCount: perfectDaysCount,
-            completedGoalsCount: completedGoalsCount,
-          );
-          // Write back atomically inside the transaction.
-          txn.set(docRef, updatedProfile.toJson(), SetOptions(merge: true));
-        });
-        return updatedProfile;
-      }
-    } catch (e) {
-      AppLogger.w('GamificationService: Firestore transaction failed, falling back to local: $e');
-    }
-
-    // Fallback: local-only update (offline or transaction unavailable).
-    return _awardXpLocal(
-      amount,
-      title: title,
-      type: type,
-      streakDays: streakDays,
-      completedTasksCount: completedTasksCount,
-      completedHabitsCount: completedHabitsCount,
-      focusMinutes: focusMinutes,
-      perfectDaysCount: perfectDaysCount,
-      completedGoalsCount: completedGoalsCount,
-    );
-  }
-
-  /// Local-only (non-transactional) XP update used when Firestore is unavailable.
-  Future<XPProfile> _awardXpLocal(
     int amount, {
     String title = 'Activity Completed',
     String type = 'general',
@@ -213,6 +126,7 @@ class GamificationService {
   }) async {
     final currentProfile = _gamificationRepository?.getXPProfile() ??
         const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
+
     final updatedProfile = _buildUpdatedProfile(
       currentProfile,
       amount,
@@ -225,6 +139,7 @@ class GamificationService {
       perfectDaysCount: perfectDaysCount,
       completedGoalsCount: completedGoalsCount,
     );
+
     if (_gamificationRepository != null) {
       await _gamificationRepository!.updateXPProfile(updatedProfile);
     }
