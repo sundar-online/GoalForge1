@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:goalforge/core/domain/models/focus_session.dart';
 import 'package:goalforge/core/domain/models/xp_profile.dart';
 import 'package:goalforge/core/domain/repositories/focus_repository.dart';
@@ -29,10 +29,8 @@ class MockFocusRepository implements FocusRepository {
   @override
   Future<void> fetchRemoteFocusSessions() async {}
 
-  @override
   Future<int> getTotalFocusMinutesToday() async => 0;
 
-  @override
   Future<int> getTotalSessionsCount() async => _sessions.length;
 }
 
