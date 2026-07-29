@@ -27,7 +27,9 @@ jobs:
       # ─── Trivy: filesystem vulnerability scan ──────────────────────────────
       - name: Install Trivy CLI
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.52.0
+          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.52.0/trivy_0.52.0_Linux-64bit.tar.gz | tar -xz trivy
+          sudo install -m 0755 trivy /usr/local/bin/trivy
+          rm -f trivy
           trivy --version
 
       - name: Run Trivy (JSON)
@@ -51,8 +53,9 @@ jobs:
       # ─── Gitleaks: secrets detection ────────────────────────────────────────
       - name: Install Gitleaks
         run: |
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.3/gitleaks_8.18.3_linux_x64.tar.gz | tar -xz -C /usr/local/bin gitleaks
-          chmod +x /usr/local/bin/gitleaks
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.3/gitleaks_8.18.3_linux_x64.tar.gz | tar -xz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm -f gitleaks
 
       - name: Run Gitleaks
         run: |
