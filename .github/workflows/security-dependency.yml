@@ -78,8 +78,15 @@ jobs:
           flutter pub deps --json > pub-deps.json 2>&1 || true
 
       # ─── Generate Combined Excel Report ────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install Python & openpyxl
-        run: python3 -m pip install --quiet openpyxl
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
 
       - name: Build Dependency Scan Excel Report
         run: |

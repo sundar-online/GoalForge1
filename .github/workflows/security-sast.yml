@@ -40,9 +40,12 @@ jobs:
             --no-error \
             . || true
 
-      - name: Install Python & openpyxl
+      - name: Set up Python environment & install openpyxl
         run: |
-          python3 -m pip install --quiet openpyxl
+          python3 -m venv /opt/venv
+          /opt/venv/bin/pip install --upgrade pip --quiet
+          /opt/venv/bin/pip install openpyxl --quiet
+          echo "/opt/venv/bin" >> $GITHUB_PATH
 
       - name: Convert JSON to Excel Report
         run: |

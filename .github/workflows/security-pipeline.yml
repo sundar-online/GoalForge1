@@ -30,8 +30,12 @@ jobs:
       - name: Semgrep SAST Scan (SARIF)
         run: semgrep --config=auto --sarif --output=semgrep-results.sarif --no-error . || true
 
-      - name: Install openpyxl
-        run: python3 -m pip install --quiet openpyxl
+      - name: Set up Python environment & install openpyxl
+        run: |
+          python3 -m venv /opt/venv
+          /opt/venv/bin/pip install --upgrade pip --quiet
+          /opt/venv/bin/pip install openpyxl --quiet
+          echo "/opt/venv/bin" >> $GITHUB_PATH
 
       - name: Build SAST Excel
         run: |
@@ -139,8 +143,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Python deps
-        run: python3 -m pip install --quiet requests openpyxl PyJWT cryptography
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl requests PyJWT cryptography
 
       - name: Run DAST Tests
         run: |
@@ -366,8 +377,15 @@ jobs:
           flutter pub get --no-example 2>/dev/null || true
           flutter pub outdated --json > pub-outdated.json 2>/dev/null || echo "{}" > pub-outdated.json
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install openpyxl
-        run: python3 -m pip install --quiet openpyxl
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
 
       - name: Build Dependency Excel
         run: |
