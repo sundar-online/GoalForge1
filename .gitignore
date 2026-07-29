@@ -1,3 +1,11 @@
+# ─── Security: Firebase credentials — never commit these ────────────────────
+# API keys and OAuth credentials are injected at build time via CI secrets.
+# Run `flutterfire configure` locally to regenerate firebase_options.dart.
+lib/firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+
 # Miscellaneous
 *.class
 *.log

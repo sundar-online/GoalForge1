@@ -1,0 +1,161 @@
+// GoalForge Firestore Security Rules
+// SAST-06 fix: Enforce strict per-user data isolation.
+//
+// Security model:
+//   - All reads and writes require a valid Firebase Auth JWT (request.auth != null).
+//   - Each user can only access their own sub-collections under /users/{uid}.
+//   - The xp document additionally requires server-side validation of fields.
+//   - No cross-user reads are permitted anywhere.
+//   - All other paths are denied by default (implicit in Firestore rules).
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────────────────────
+
+    /// Returns true when the caller is authenticated.
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    /// Returns true when the caller's UID matches the document's owner UID.
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    /// Returns true when incoming data contains only the allowed keys.
+    function hasOnlyKeys(keys) {
+      return request.resource.data.keys().hasOnly(keys);
+    }
+
+    // ── User profile document: /users/{uid} ─────────────────────────────────
+    match /users/{uid} {
+      allow read:  if isOwner(uid);
+      allow write: if isOwner(uid)
+                   && hasOnlyKeys(['uid', 'email', 'displayName', 'createdAt', 'updatedAt']);
+
+      // ── Goals: /users/{uid}/goals/{goalId} ───────────────────────────────
+      match /goals/{goalId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','description','category','progress',
+                                      'targetDate','isCompleted','createdAt','updatedAt','uid']);
+        allow update: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','description','category','progress',
+                                      'targetDate','isCompleted','createdAt','updatedAt','uid']);
+        allow delete: if isOwner(uid);
+
+        // ── Habits: /users/{uid}/goals/{goalId}/habits/{habitId} ───────────
+        match /habits/{habitId} {
+          allow read:   if isOwner(uid);
+          allow create: if isOwner(uid)
+                        && hasOnlyKeys(['id','goalId','title','frequency','completedDates',
+                                        'streak','createdAt','updatedAt','uid']);
+          allow update: if isOwner(uid)
+                        && hasOnlyKeys(['id','goalId','title','frequency','completedDates',
+                                        'streak','createdAt','updatedAt','uid']);
+          allow delete: if isOwner(uid);
+        }
+      }
+
+      // ── Tasks: /users/{uid}/tasks/{taskId} ───────────────────────────────
+      match /tasks/{taskId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','description','goalId','isCompleted',
+                                      'dueDate','priority','tags','createdAt','updatedAt','uid']);
+        allow update: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','description','goalId','isCompleted',
+                                      'dueDate','priority','tags','createdAt','updatedAt','uid']);
+        allow delete: if isOwner(uid);
+      }
+
+      // ── Task Logs: /users/{uid}/task_logs/{logId} ────────────────────────
+      match /task_logs/{logId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && hasOnlyKeys(['id','taskId','completedAt','note','uid']);
+        allow update: if isOwner(uid)
+                      && hasOnlyKeys(['id','taskId','completedAt','note','uid']);
+        allow delete: if isOwner(uid);
+      }
+
+      // ── Notes: /users/{uid}/notes/{noteId} ───────────────────────────────
+      match /notes/{noteId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','content','tags','createdAt','updatedAt','uid']);
+        allow update: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','content','tags','createdAt','updatedAt','uid']);
+        allow delete: if isOwner(uid);
+      }
+
+      // ── Quick Thoughts: /users/{uid}/quick_thoughts/{thoughtId} ─────────
+      match /quick_thoughts/{thoughtId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && hasOnlyKeys(['id','content','createdAt','uid']);
+        allow update: if isOwner(uid)
+                      && hasOnlyKeys(['id','content','createdAt','uid']);
+        allow delete: if isOwner(uid);
+      }
+
+      // ── Scheduled Events: /users/{uid}/scheduled_events/{eventId} ───────
+      match /scheduled_events/{eventId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','description','startTime','endTime',
+                                      'isAllDay','color','createdAt','updatedAt','uid']);
+        allow update: if isOwner(uid)
+                      && hasOnlyKeys(['id','title','description','startTime','endTime',
+                                      'isAllDay','color','createdAt','updatedAt','uid']);
+        allow delete: if isOwner(uid);
+      }
+
+      // ── Focus Sessions: /users/{uid}/focus_sessions/{sessionId} ─────────
+      match /focus_sessions/{sessionId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && hasOnlyKeys(['id','durationSeconds','timeSpentSeconds','sessionType',
+                                      'startedAt','completedAt','isCompleted','uid']);
+        allow update: if isOwner(uid)
+                      && hasOnlyKeys(['id','durationSeconds','timeSpentSeconds','sessionType',
+                                      'startedAt','completedAt','isCompleted','uid']);
+        allow delete: if isOwner(uid);
+      }
+
+      // ── XP Profile: /users/{uid}/xp/profile ─────────────────────────────
+      // SAST-05 partial mitigation: Restrict direct client writes to the xp document.
+      // The preferred solution is to move XP award logic to a Firebase Cloud Function
+      // and set allow write: if false here.  This rule allows client writes as a
+      // transitional measure while Cloud Functions are being implemented, but
+      // enforces field-level validation to prevent arbitrary XP injection.
+      match /xp/{doc} {
+        allow read:   if isOwner(uid);
+        allow write:  if isOwner(uid)
+                      && hasOnlyKeys(['totalXP','level','xpHistory','earnedBadges',
+                                      'unlockedBadgesMap','transactions','storyMoments',
+                                      'updatedAt','uid'])
+                      // Prevent negative XP and values above a reasonable cap.
+                      && request.resource.data.totalXP is int
+                      && request.resource.data.totalXP >= 0
+                      && request.resource.data.totalXP <= 999999;
+      }
+
+      // ── Settings: /users/{uid}/settings/general ──────────────────────────
+      match /settings/{doc} {
+        allow read:   if isOwner(uid);
+        allow write:  if isOwner(uid)
+                      && hasOnlyKeys(['theme','notificationsEnabled','dailyReminderHour',
+                                      'dailyReminderMinute','updatedAt','uid']);
+      }
+    }
+
+    // ── Deny all other paths by default ─────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

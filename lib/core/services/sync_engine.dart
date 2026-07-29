@@ -4,6 +4,81 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'local_database_service.dart';
 import '../utils/logger.dart';
 
+/// SAST-09: Payload allowlists per Firestore collection.
+/// Only keys in this map are permitted to be written — all other keys are
+/// stripped before the document reaches Firestore to prevent field injection.
+const Map<String, Set<String>> _payloadAllowlists = {
+  'goals': {
+    'id', 'title', 'description', 'category', 'progress', 'targetDate',
+    'isCompleted', 'createdAt', 'updatedAt', 'uid',
+  },
+  'habits': {
+    'id', 'goalId', 'title', 'frequency', 'completedDates', 'streak',
+    'createdAt', 'updatedAt', 'uid',
+  },
+  'tasks': {
+    'id', 'title', 'description', 'goalId', 'isCompleted', 'dueDate',
+    'priority', 'tags', 'createdAt', 'updatedAt', 'uid',
+  },
+  'task_logs': {
+    'id', 'taskId', 'completedAt', 'note', 'uid',
+  },
+  'notes': {
+    'id', 'title', 'content', 'tags', 'createdAt', 'updatedAt', 'uid',
+  },
+  'quick_thoughts': {
+    'id', 'content', 'createdAt', 'uid',
+  },
+  'quick_thought': {
+    'id', 'content', 'createdAt', 'uid',
+  },
+  'events': {
+    'id', 'title', 'description', 'startTime', 'endTime', 'isAllDay',
+    'color', 'createdAt', 'updatedAt', 'uid',
+  },
+  'scheduled_events': {
+    'id', 'title', 'description', 'startTime', 'endTime', 'isAllDay',
+    'color', 'createdAt', 'updatedAt', 'uid',
+  },
+  'focus': {
+    'id', 'durationSeconds', 'timeSpentSeconds', 'sessionType', 'startedAt',
+    'completedAt', 'isCompleted', 'uid',
+  },
+  'focus_sessions': {
+    'id', 'durationSeconds', 'timeSpentSeconds', 'sessionType', 'startedAt',
+    'completedAt', 'isCompleted', 'uid',
+  },
+  'xp': {
+    'totalXP', 'level', 'xpHistory', 'earnedBadges', 'unlockedBadgesMap',
+    'transactions', 'storyMoments', 'updatedAt', 'uid',
+  },
+  'settings': {
+    'theme', 'notificationsEnabled', 'dailyReminderHour', 'dailyReminderMinute',
+    'updatedAt', 'uid',
+  },
+};
+
+/// Strips any keys not in the allowlist for [collection] from [payload].
+/// Returns null if the collection has no allowlist defined (blocks write).
+Map<String, dynamic>? _sanitizePayload(
+  String collection,
+  Map<String, dynamic> payload,
+) {
+  final allowlist = _payloadAllowlists[collection];
+  if (allowlist == null) {
+    AppLogger.w('SyncEngine: No allowlist for collection "$collection" — blocking write.');
+    return null;
+  }
+  final sanitized = Map<String, dynamic>.fromEntries(
+    payload.entries.where((e) => allowlist.contains(e.key)),
+  );
+  final removed = payload.keys.where((k) => !allowlist.contains(k)).toList();
+  if (removed.isNotEmpty) {
+    AppLogger.w('SyncEngine: Stripped disallowed keys from $collection payload: $removed');
+  }
+  return sanitized;
+}
+
 class SyncEngine {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
@@ -67,7 +142,20 @@ class SyncEngine {
 
         if (action == 'upsert') {
           if (payload == null) continue;
-          await ref.set(payload, SetOptions(merge: true));
+          // SAST-09: Sanitize payload against the per-collection allowlist before
+          // writing to Firestore — prevents field injection from malformed queue entries.
+          final sanitized = _sanitizePayload(collection, payload);
+          if (sanitized == null) {
+            AppLogger.e('SyncEngine: Blocked upsert for unknown collection "$collection".');
+            await LocalDatabaseService.removeFromQueue(key);
+            continue;
+          }
+          if (sanitized.isEmpty) {
+            AppLogger.w('SyncEngine: Payload empty after sanitization for $collection/$id — skipping.');
+            await LocalDatabaseService.removeFromQueue(key);
+            continue;
+          }
+          await ref.set(sanitized, SetOptions(merge: true));
           AppLogger.i('Synced upsert for $collection/$id successfully.');
         } else if (action == 'delete') {
           await ref.delete();

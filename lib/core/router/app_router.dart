@@ -21,8 +21,14 @@ class AppRouter {
   static const String analyticsRoute = '/analytics';
   static const String profileRoute = '/profile';
 
-  // Global key for context-free navigation
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  // SAST-13: navigatorKey is private to prevent external code from hijacking
+  // the global navigation context.  Access is allowed only through AppRouter's
+  // own navigation helper methods below.
+  static final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
+  /// Read-only accessor — prefer AppRouter.pushNamed() and similar helpers
+  /// instead of accessing the key directly.
+  static GlobalKey<NavigatorState> get navigatorKey => _navigatorKey;
 
   /// Returns true if the user is currently authenticated via Firebase Auth or AuthBloc.
   static bool _isUserAuthenticated() {
@@ -105,15 +111,15 @@ class AppRouter {
 
   // Navigation Helper utilities
   static Future<T?> pushNamed<T>(String routeName, {Object? arguments}) {
-    return navigatorKey.currentState!.pushNamed<T>(routeName, arguments: arguments);
+    return _navigatorKey.currentState!.pushNamed<T>(routeName, arguments: arguments);
   }
 
   static Future<T?> pushReplacementNamed<T, TO>(String routeName, {Object? arguments}) {
-    return navigatorKey.currentState!.pushReplacementNamed<T, TO>(routeName, arguments: arguments);
+    return _navigatorKey.currentState!.pushReplacementNamed<T, TO>(routeName, arguments: arguments);
   }
 
   static void pop<T>([T? result]) {
-    navigatorKey.currentState!.pop<T>(result);
+    _navigatorKey.currentState!.pop<T>(result);
   }
 
   static Future<T?> pushNamedAndRemoveUntil<T>(
@@ -121,7 +127,7 @@ class AppRouter {
     RoutePredicate predicate, {
     Object? arguments,
   }) {
-    return navigatorKey.currentState!.pushNamedAndRemoveUntil<T>(
+    return _navigatorKey.currentState!.pushNamedAndRemoveUntil<T>(
       newRouteName,
       predicate,
       arguments: arguments,

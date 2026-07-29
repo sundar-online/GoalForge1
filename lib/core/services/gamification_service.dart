@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_constants.dart';
 import '../domain/models/badge_model.dart';
 import '../domain/models/story_moment.dart';
@@ -6,6 +7,7 @@ import '../domain/models/xp_transaction.dart';
 import '../domain/repositories/gamification_repository.dart';
 import '../gamification/badges_catalog.dart';
 import '../utils/date_utils.dart';
+import '../utils/logger.dart';
 
 class LevelProgress {
   final int currentLevel;
@@ -111,8 +113,88 @@ class GamificationService {
     return unlocked;
   }
 
-  /// Awards XP, records activity transactions, updates level and evaluates badges
+  /// Awards XP, records activity transactions, updates level and evaluates badges.
+  ///
+  /// SAST-10: Uses Firestore [runTransaction] to perform an atomic read-modify-write
+  /// on the XP profile document, eliminating the race condition that previously
+  /// allowed duplicate XP to be awarded on concurrent habit/task completions.
   Future<XPProfile> awardXp(
+    int amount, {
+    String title = 'Activity Completed',
+    String type = 'general',
+    int streakDays = 0,
+    int completedTasksCount = 0,
+    int completedHabitsCount = 0,
+    int focusMinutes = 0,
+    int perfectDaysCount = 0,
+    int completedGoalsCount = 0,
+  }) async {
+    // Fast path: if no repository is wired, fall back to local-only (test/offline mode).
+    if (_gamificationRepository == null) {
+      return _awardXpLocal(
+        amount,
+        title: title,
+        type: type,
+        streakDays: streakDays,
+        completedTasksCount: completedTasksCount,
+        completedHabitsCount: completedHabitsCount,
+        focusMinutes: focusMinutes,
+        perfectDaysCount: perfectDaysCount,
+        completedGoalsCount: completedGoalsCount,
+      );
+    }
+
+    // SAST-10: Attempt atomic Firestore transaction for the connected path.
+    try {
+      // Retrieve the Firestore document reference from the repository.
+      final docRef = _gamificationRepository!.xpDocumentReference;
+      if (docRef != null) {
+        late XPProfile updatedProfile;
+        await FirebaseFirestore.instance.runTransaction((txn) async {
+          final snapshot = await txn.get(docRef);
+          // Deserialise current profile inside the transaction to read the
+          // latest committed value, not a potentially stale local cache.
+          final currentProfile = snapshot.exists && snapshot.data() != null
+              ? XPProfile.fromMap(snapshot.data()!)
+              : const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
+
+          updatedProfile = _buildUpdatedProfile(
+            currentProfile,
+            amount,
+            title: title,
+            type: type,
+            streakDays: streakDays,
+            completedTasksCount: completedTasksCount,
+            completedHabitsCount: completedHabitsCount,
+            focusMinutes: focusMinutes,
+            perfectDaysCount: perfectDaysCount,
+            completedGoalsCount: completedGoalsCount,
+          );
+          // Write back atomically inside the transaction.
+          txn.set(docRef, updatedProfile.toMap(), SetOptions(merge: true));
+        });
+        return updatedProfile;
+      }
+    } catch (e) {
+      AppLogger.w('GamificationService: Firestore transaction failed, falling back to local: $e');
+    }
+
+    // Fallback: local-only update (offline or transaction unavailable).
+    return _awardXpLocal(
+      amount,
+      title: title,
+      type: type,
+      streakDays: streakDays,
+      completedTasksCount: completedTasksCount,
+      completedHabitsCount: completedHabitsCount,
+      focusMinutes: focusMinutes,
+      perfectDaysCount: perfectDaysCount,
+      completedGoalsCount: completedGoalsCount,
+    );
+  }
+
+  /// Local-only (non-transactional) XP update used when Firestore is unavailable.
+  Future<XPProfile> _awardXpLocal(
     int amount, {
     String title = 'Activity Completed',
     String type = 'general',
@@ -125,17 +207,47 @@ class GamificationService {
   }) async {
     final currentProfile = _gamificationRepository?.getXPProfile() ??
         const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
+    final updatedProfile = _buildUpdatedProfile(
+      currentProfile,
+      amount,
+      title: title,
+      type: type,
+      streakDays: streakDays,
+      completedTasksCount: completedTasksCount,
+      completedHabitsCount: completedHabitsCount,
+      focusMinutes: focusMinutes,
+      perfectDaysCount: perfectDaysCount,
+      completedGoalsCount: completedGoalsCount,
+    );
+    if (_gamificationRepository != null) {
+      await _gamificationRepository!.updateXPProfile(updatedProfile);
+    }
+    return updatedProfile;
+  }
 
+  /// Pure function: builds an updated [XPProfile] from [current] + [amount].
+  /// Extracted so it can be called from both the Firestore transaction
+  /// and the local fallback without duplicating logic.
+  XPProfile _buildUpdatedProfile(
+    XPProfile currentProfile,
+    int amount, {
+    required String title,
+    required String type,
+    required int streakDays,
+    required int completedTasksCount,
+    required int completedHabitsCount,
+    required int focusMinutes,
+    required int perfectDaysCount,
+    required int completedGoalsCount,
+  }) {
     final newTotalXp = currentProfile.totalXP + amount;
     final newLevel = calculateLevel(newTotalXp);
     final todayStr = AppDateUtils.getTodayString();
     final nowIso = DateTime.now().toIso8601String();
 
-    // Update daily XP history map
     final updatedHistory = Map<String, int>.from(currentProfile.xpHistory);
     updatedHistory[todayStr] = (updatedHistory[todayStr] ?? 0) + amount;
 
-    // Create new transaction log entry
     final newTx = XpTransaction(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
@@ -162,16 +274,11 @@ class GamificationService {
       completedGoalsCount: completedGoalsCount,
     );
 
-    final updatedProfile = tempProfile.copyWith(
+    return tempProfile.copyWith(
       earnedBadges: unlockedBadges.keys.toList(),
       unlockedBadgesMap: unlockedBadges,
       updatedAt: nowIso,
     );
-
-    if (_gamificationRepository != null) {
-      await _gamificationRepository!.updateXPProfile(updatedProfile);
-    }
-    return updatedProfile;
   }
 
   /// Auto-generates a Story Moment reflection when a goal reaches 100% completion
