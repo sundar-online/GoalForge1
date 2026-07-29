@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_constants.dart';
 import '../domain/models/badge_model.dart';
 import '../domain/models/story_moment.dart';
@@ -146,9 +147,14 @@ class GamificationService {
 
     // SAST-10: Attempt atomic Firestore transaction for the connected path.
     try {
-      // Retrieve the Firestore document reference from the repository.
-      final docRef = _gamificationRepository!.xpDocumentReference;
-      if (docRef != null) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final docRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('xp')
+            .doc('profile');
+
         late XPProfile updatedProfile;
         await FirebaseFirestore.instance.runTransaction((txn) async {
           final snapshot = await txn.get(docRef);
