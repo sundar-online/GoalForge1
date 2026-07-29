@@ -161,7 +161,7 @@ class GamificationService {
           // Deserialise current profile inside the transaction to read the
           // latest committed value, not a potentially stale local cache.
           final currentProfile = snapshot.exists && snapshot.data() != null
-              ? XPProfile.fromMap(snapshot.data()!)
+              ? XPProfile.fromJson(snapshot.data()!)
               : const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
 
           updatedProfile = _buildUpdatedProfile(
@@ -177,7 +177,7 @@ class GamificationService {
             completedGoalsCount: completedGoalsCount,
           );
           // Write back atomically inside the transaction.
-          txn.set(docRef, updatedProfile.toMap(), SetOptions(merge: true));
+          txn.set(docRef, updatedProfile.toJson(), SetOptions(merge: true));
         });
         return updatedProfile;
       }
