@@ -351,7 +351,7 @@ jobs:
           fetch-depth: 0
 
       - name: Trivy Vulnerability Scan (JSON)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -360,7 +360,7 @@ jobs:
           exit-code: '0'
 
       - name: Trivy Vulnerability Scan (SARIF)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
