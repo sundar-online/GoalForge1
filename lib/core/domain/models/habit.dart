@@ -14,10 +14,13 @@ class Habit extends Equatable {
   final int bestStreak;
   final int missedDays;
   final List<String> completedDates; // ["YYYY-MM-DD"]
-  final int timeSpent; // transient spent minutes today
-  final int currentCount; // transient count today
+  final int timeSpent; // transient spent minutes for the current day only
+  final int currentCount; // transient count for the current day only
   final bool completed; // transient completion status today
   final String? lastCompletedDate;
+  /// The calendar date (YYYY-MM-DD) on which timeSpent/currentCount were last
+  /// updated. Used to detect a day rollover and reset transient progress to 0.
+  final String? lastProgressDate;
   final String createdAt;
 
   const Habit({
@@ -38,6 +41,7 @@ class Habit extends Equatable {
     this.currentCount = 0,
     this.completed = false,
     this.lastCompletedDate,
+    this.lastProgressDate,
     required this.createdAt,
   });
 
@@ -59,6 +63,7 @@ class Habit extends Equatable {
     int? currentCount,
     bool? completed,
     String? lastCompletedDate,
+    String? lastProgressDate,
     String? createdAt,
   }) {
     return Habit(
@@ -79,6 +84,7 @@ class Habit extends Equatable {
       currentCount: currentCount ?? this.currentCount,
       completed: completed ?? this.completed,
       lastCompletedDate: lastCompletedDate ?? this.lastCompletedDate,
+      lastProgressDate: lastProgressDate ?? this.lastProgressDate,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -102,6 +108,7 @@ class Habit extends Equatable {
       'currentCount': currentCount,
       'completed': completed,
       'lastCompletedDate': lastCompletedDate,
+      'lastProgressDate': lastProgressDate,
       'createdAt': createdAt,
     };
   }
@@ -125,6 +132,7 @@ class Habit extends Equatable {
       currentCount: json['currentCount'] as int? ?? 0,
       completed: json['completed'] as bool? ?? false,
       lastCompletedDate: json['lastCompletedDate'] as String?,
+      lastProgressDate: json['lastProgressDate'] as String?,
       createdAt: json['createdAt'] as String? ?? '',
     );
   }
@@ -156,6 +164,7 @@ class Habit extends Equatable {
         currentCount,
         completed,
         lastCompletedDate,
+        lastProgressDate,
         createdAt,
       ];
 }

@@ -53,3 +53,14 @@ class ChangeVolumeEvent extends FocusEvent {
   @override
   List<Object?> get props => [volume];
 }
+
+class RecalculateTimerEvent extends FocusEvent {}
+
+class PreviewSoundEvent extends FocusEvent {
+  final String sound;
+
+  const PreviewSoundEvent(this.sound);
+
+  @override
+  List<Object?> get props => [sound];
+}

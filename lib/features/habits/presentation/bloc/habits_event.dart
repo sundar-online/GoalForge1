@@ -89,3 +89,8 @@ class UpdateHabitCountEvent extends HabitsEvent {
   List<Object?> get props => [habitId, delta];
 }
 
+/// Fired at midnight (via an internal Timer) and on app resume after a date
+/// change, so the BLoC re-evaluates today's completion state from fresh data.
+class DayRolloverEvent extends HabitsEvent {
+  const DayRolloverEvent();
+}

@@ -18,4 +18,7 @@ abstract class AuthRepository {
 
   /// Get current user.
   User? getCurrentUser();
+
+  /// Send password reset email via Firebase Auth.
+  Future<void> sendPasswordResetEmail(String email);
 }

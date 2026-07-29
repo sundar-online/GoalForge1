@@ -33,3 +33,12 @@ class SignUpRequested extends AuthEvent {
 class GoogleSignInRequested extends AuthEvent {}
 
 class SignOutRequested extends AuthEvent {}
+
+class PasswordResetRequested extends AuthEvent {
+  final String email;
+
+  const PasswordResetRequested(this.email);
+
+  @override
+  List<Object?> get props => [email];
+}

@@ -87,7 +87,7 @@ class AuthGate extends StatelessWidget {
       builder: (context, state) {
         if (state is Authenticated) {
           return const MainNavigationPage();
-        } else if (state is Unauthenticated || state is AuthError) {
+        } else if (state is Unauthenticated || state is AuthError || state is PasswordResetSent) {
           return const AuthPage();
         }
         

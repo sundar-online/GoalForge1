@@ -1,16 +1,23 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/domain/models/focus_session.dart';
 import '../../../../core/domain/repositories/focus_repository.dart';
+import '../../../../core/lifecycle/lifecycle_watcher.dart';
+import '../../../../core/services/focus_audio_service.dart';
 import '../../../../core/services/gamification_service.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/utils/uuid_generator.dart';
 import 'focus_event.dart';
 import 'focus_state.dart';
 
-class FocusBloc extends Bloc<FocusEvent, FocusState> {
+class FocusBloc extends Bloc<FocusEvent, FocusState> implements AppLifecycleListener {
   final FocusRepository _focusRepository;
   final GamificationService _gamificationService;
+  final LifecycleWatcher? _lifecycleWatcher;
+  final NotificationService? _notificationService;
+  final FocusAudioService? _audioService;
 
   StreamSubscription? _focusSubscription;
   Timer? _tickerTimer;
@@ -18,20 +25,48 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
   FocusBloc({
     required FocusRepository focusRepository,
     required GamificationService gamificationService,
+    LifecycleWatcher? lifecycleWatcher,
+    NotificationService? notificationService,
+    FocusAudioService? audioService,
   })  : _focusRepository = focusRepository,
         _gamificationService = gamificationService,
+        _lifecycleWatcher = lifecycleWatcher,
+        _notificationService = notificationService,
+        _audioService = audioService,
         super(FocusInitial()) {
+    _lifecycleWatcher?.addListener(this);
+
     on<SubscribeToFocus>(_onSubscribeToFocus);
     on<_FocusDataChanged>(_onFocusDataChanged);
     on<StartTimerEvent>(_onStartTimer);
     on<PauseTimerEvent>(_onPauseTimer);
     on<ResetTimerEvent>(_onResetTimer);
     on<TickTimerEvent>(_onTickTimer);
+    on<RecalculateTimerEvent>(_onRecalculateTimer);
     on<CompleteFocusSessionEvent>(_onCompleteFocusSession);
     on<SelectDurationEvent>(_onSelectDuration);
     on<SelectSoundscapeEvent>(_onSelectSoundscape);
     on<ChangeVolumeEvent>(_onChangeVolume);
+    on<PreviewSoundEvent>(_onPreviewSound);
   }
+
+  @override
+  void onResumed() {
+    add(RecalculateTimerEvent());
+  }
+
+  @override
+  void onPaused() {
+    add(RecalculateTimerEvent());
+  }
+
+  @override
+  void onInactive() {
+    add(RecalculateTimerEvent());
+  }
+
+  @override
+  void onDetached() {}
 
   void _onSubscribeToFocus(SubscribeToFocus event, Emitter<FocusState> emit) {
     emit(FocusLoading());
@@ -56,6 +91,8 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     bool? isCompleted,
     String? selectedSound,
     double? volume,
+    DateTime? targetEndTime,
+    bool? hasPlayedAlarm,
   }) {
     try {
       final sessions = _focusRepository.getFocusSessions();
@@ -77,6 +114,10 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
           ((state is FocusLoaded) ? (state as FocusLoaded).selectedSound : 'BELL');
       final currVol = volume ??
           ((state is FocusLoaded) ? (state as FocusLoaded).volume : 0.75);
+      final currTargetEndTime = targetEndTime ??
+          ((state is FocusLoaded) ? (state as FocusLoaded).targetEndTime : null);
+      final currHasPlayed = hasPlayedAlarm ??
+          ((state is FocusLoaded) ? (state as FocusLoaded).hasPlayedAlarm : false);
 
       emit(FocusLoaded(
         selectedDurationMinutes: currDuration,
@@ -88,6 +129,8 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
         sessions: sessions,
         totalFocusMinutesToday: totalMinutesToday,
         totalSessionsCount: todaySessions.length,
+        targetEndTime: currTargetEndTime,
+        hasPlayedAlarm: currHasPlayed,
       ));
     } catch (e) {
       emit(FocusError(e.toString()));
@@ -98,10 +141,21 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     if (state is FocusLoaded) {
       final current = state as FocusLoaded;
       _tickerTimer?.cancel();
+
+      final targetEndTime = DateTime.now().add(Duration(seconds: current.remainingSeconds));
+
       _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!isClosed) add(TickTimerEvent());
       });
-      emit(current.copyWith(isRunning: true, isCompleted: false));
+
+      _notificationService?.requestPermission();
+
+      emit(current.copyWith(
+        isRunning: true,
+        isCompleted: false,
+        targetEndTime: targetEndTime,
+        hasPlayedAlarm: false,
+      ));
     }
   }
 
@@ -109,7 +163,16 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     if (state is FocusLoaded) {
       final current = state as FocusLoaded;
       _tickerTimer?.cancel();
-      emit(current.copyWith(isRunning: false));
+
+      final remaining = current.targetEndTime != null
+          ? math.max(0, current.targetEndTime!.difference(DateTime.now()).inSeconds)
+          : current.remainingSeconds;
+
+      emit(current.copyWith(
+        isRunning: false,
+        remainingSeconds: remaining,
+        targetEndTime: null,
+      ));
     }
   }
 
@@ -122,18 +185,40 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
         remainingSeconds: resetSeconds,
         isRunning: false,
         isCompleted: false,
+        targetEndTime: null,
+        hasPlayedAlarm: false,
       ));
     }
   }
 
   void _onTickTimer(TickTimerEvent event, Emitter<FocusState> emit) {
+    _evaluateTimerState(emit);
+  }
+
+  void _onRecalculateTimer(RecalculateTimerEvent event, Emitter<FocusState> emit) {
+    _evaluateTimerState(emit);
+  }
+
+  void _evaluateTimerState(Emitter<FocusState> emit) {
     if (state is FocusLoaded) {
       final current = state as FocusLoaded;
-      if (current.remainingSeconds <= 1) {
+      if (!current.isRunning || current.targetEndTime == null) return;
+
+      final now = DateTime.now();
+      final diff = current.targetEndTime!.difference(now).inSeconds;
+
+      if (diff <= 0) {
         _tickerTimer?.cancel();
+        emit(current.copyWith(
+          remainingSeconds: 0,
+          isRunning: false,
+          targetEndTime: null,
+        ));
         add(const CompleteFocusSessionEvent());
       } else {
-        emit(current.copyWith(remainingSeconds: current.remainingSeconds - 1));
+        if (diff != current.remainingSeconds) {
+          emit(current.copyWith(remainingSeconds: diff));
+        }
       }
     }
   }
@@ -143,6 +228,14 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     if (state is FocusLoaded) {
       final current = state as FocusLoaded;
       _tickerTimer?.cancel();
+
+      if (!current.hasPlayedAlarm) {
+        _audioService?.playAlertSound(current.selectedSound, current.volume);
+        _notificationService?.showFocusCompletedNotification(
+          sessionType: 'pomodoro',
+          minutes: current.selectedDurationMinutes,
+        );
+      }
 
       final spentSeconds = (current.selectedDurationMinutes * 60) - current.remainingSeconds;
       final session = FocusSession(
@@ -157,8 +250,6 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
       );
 
       await _focusRepository.logFocusSession(session);
-
-      // Award +100 XP on completed focus session
       await _gamificationService.awardXp(100);
 
       _recalculateAndEmit(
@@ -166,6 +257,8 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
         remainingSeconds: 0,
         isRunning: false,
         isCompleted: true,
+        hasPlayedAlarm: true,
+        targetEndTime: null,
       );
     }
   }
@@ -179,6 +272,8 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
         remainingSeconds: event.minutes * 60,
         isRunning: false,
         isCompleted: false,
+        targetEndTime: null,
+        hasPlayedAlarm: false,
       ));
     }
   }
@@ -187,6 +282,7 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     if (state is FocusLoaded) {
       final current = state as FocusLoaded;
       emit(current.copyWith(selectedSound: event.sound));
+      _audioService?.previewSound(event.sound, current.volume);
     }
   }
 
@@ -197,8 +293,16 @@ class FocusBloc extends Bloc<FocusEvent, FocusState> {
     }
   }
 
+  void _onPreviewSound(PreviewSoundEvent event, Emitter<FocusState> emit) {
+    if (state is FocusLoaded) {
+      final current = state as FocusLoaded;
+      _audioService?.previewSound(event.sound, current.volume);
+    }
+  }
+
   @override
   Future<void> close() {
+    _lifecycleWatcher?.removeListener(this);
     _focusSubscription?.cancel();
     _tickerTimer?.cancel();
     return super.close();

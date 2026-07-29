@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/password_validator.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
@@ -35,6 +36,14 @@ class _AuthPageState extends State<AuthPage> {
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
+              ),
+            );
+          } else if (state is PasswordResetSent) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: const Color(0xFF00D9A5),
+                duration: const Duration(seconds: 5),
               ),
             );
           }
@@ -138,7 +147,7 @@ class _AuthPageState extends State<AuthPage> {
                                   if (value == null || value.trim().isEmpty) {
                                     return 'Please enter your email';
                                   }
-                                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                                  if (!AuthValidator.isValidEmail(value)) {
                                     return 'Please enter a valid email address';
                                   }
                                   return null;
@@ -165,15 +174,45 @@ class _AuthPageState extends State<AuthPage> {
                                   },
                                 ),
                                 validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your password';
+                                  if (_isSignUp) {
+                                    return AuthValidator.validateSignupPassword(value);
+                                  } else {
+                                    return AuthValidator.validateLoginPassword(value);
                                   }
-                                  if (value.length < 6) {
-                                    return 'Password must be at least 6 characters';
-                                  }
-                                  return null;
                                 },
                               ),
+
+                              // Live Password Strength Checklist (Sign Up Mode)
+                              if (_isSignUp)
+                                ListenableBuilder(
+                                  listenable: _passwordController,
+                                  builder: (context, _) {
+                                    return _buildPasswordStrengthChecklist(_passwordController.text);
+                                  },
+                                ),
+
+                              // Forgot Password Link (Sign In Mode)
+                              if (!_isSignUp) ...[
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () => _showForgotPasswordDialog(context),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text(
+                                      'Forgot password?',
+                                      style: TextStyle(
+                                        color: AppColors.primary,
+                                        fontSize: 13.0,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 24.0),
 
                               // Submit Button
@@ -344,18 +383,168 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
+  Widget _buildPasswordStrengthChecklist(String password) {
+    final result = AuthValidator.validatePassword(password);
+
+    Widget item(String label, bool isMet) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3.0),
+        child: Row(
+          children: [
+            Icon(
+              isMet ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              color: isMet ? const Color(0xFF00D9A5) : Colors.white30,
+              size: 14.0,
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isMet ? Colors.white : Colors.white38,
+                  fontSize: 12.0,
+                  fontWeight: isMet ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10.0, bottom: 4.0),
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13141C),
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: const Color(0xFF2C2D35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Password Requirements:',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12.0,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6.0),
+          item('At least 8 characters long', result.hasMinLength),
+          item('At least 1 uppercase letter (A-Z)', result.hasUppercase),
+          item('At least 1 lowercase letter (a-z)', result.hasLowercase),
+          item('At least 1 number (0-9)', result.hasDigit),
+          item('At least 1 special character (!@#\$%^&*)', result.hasSpecialChar),
+        ],
+      ),
+    );
+  }
+
+  void _showForgotPasswordDialog(BuildContext context) {
+    final resetEmailController = TextEditingController(
+      text: AuthValidator.normalizeEmail(_emailController.text),
+    );
+    final dialogFormKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1C1D26),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: const BorderSide(color: Color(0xFF2C2D35)),
+          ),
+          title: const Text(
+            'Reset Password',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18.0),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your account email. We will send a link to reset your password.',
+                style: TextStyle(color: Colors.white70, fontSize: 13.5),
+              ),
+              const SizedBox(height: 16.0),
+              Form(
+                key: dialogFormKey,
+                child: TextFormField(
+                  controller: resetEmailController,
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email Address',
+                    labelStyle: const TextStyle(color: Colors.white54, fontSize: 14.0),
+                    prefixIcon: const Icon(Icons.email_outlined, color: Colors.white30, size: 20.0),
+                    filled: true,
+                    fillColor: const Color(0xFF13141C),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                      borderSide: const BorderSide(color: Color(0xFF2C2D35)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return 'Please enter your email';
+                    }
+                    if (!AuthValidator.isValidEmail(val)) {
+                      return 'Please enter a valid email address';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 10.0),
+              ),
+              onPressed: () {
+                if (dialogFormKey.currentState?.validate() ?? false) {
+                  final email = AuthValidator.normalizeEmail(resetEmailController.text);
+                  context.read<AuthBloc>().add(PasswordResetRequested(email));
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: const Text('Send Reset Link'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _submitForm() {
     if (_formKey.currentState?.validate() ?? false) {
       final bloc = context.read<AuthBloc>();
+      final normalizedEmail = AuthValidator.normalizeEmail(_emailController.text);
       if (_isSignUp) {
         bloc.add(SignUpRequested(
-          _emailController.text.trim(),
+          normalizedEmail,
           _passwordController.text,
           _nameController.text.trim(),
         ));
       } else {
         bloc.add(SignInRequested(
-          _emailController.text.trim(),
+          normalizedEmail,
           _passwordController.text,
         ));
       }

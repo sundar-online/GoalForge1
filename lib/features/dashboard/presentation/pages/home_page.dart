@@ -25,6 +25,8 @@ import '../../../events/presentation/bloc/events_event.dart';
 import '../../../events/presentation/bloc/events_state.dart';
 import '../../../goals/presentation/bloc/goals_bloc.dart';
 import '../../../goals/presentation/bloc/goals_state.dart';
+import '../../../habits/presentation/bloc/habits_bloc.dart';
+import '../../../habits/presentation/bloc/habits_state.dart';
 import '../../../logs/presentation/bloc/notes_bloc.dart';
 import '../../../logs/presentation/bloc/notes_event.dart';
 import '../../../tasks/presentation/bloc/tasks_bloc.dart';
@@ -705,32 +707,66 @@ class _HomePageState extends State<HomePage> {
   // 4. ALERT BANNERS STACK (3 Pills)
   // ─────────────────────────────────────────────────────────────
   Widget _buildAlertBannersStack(BuildContext context, AppThemeTokens tokens) {
-    return Column(
-      children: [
-        _buildSingleAlertPill(
-          icon: LucideIcons.alertTriangle,
-          text: 'Your streak is at risk',
-          iconColor: Colors.amber.shade800,
-          bgColor: const Color(0xFFFEF3C7),
-          borderColor: const Color(0xFFFDE68A),
-        ),
-        const SizedBox(height: 8),
-        _buildSingleAlertPill(
-          icon: LucideIcons.clock,
-          text: 'Low productivity detected',
-          iconColor: Colors.red.shade700,
-          bgColor: const Color(0xFFFEE2E2),
-          borderColor: const Color(0xFFFCA5A5),
-        ),
-        const SizedBox(height: 8),
-        _buildSingleAlertPill(
-          icon: LucideIcons.zap,
-          text: 'Great consistency!',
-          iconColor: Colors.green.shade700,
-          bgColor: const Color(0xFFDCFCE7),
-          borderColor: const Color(0xFF86EFAC),
-        ),
-      ],
+    return BlocBuilder<HabitsBloc, HabitsState>(
+      builder: (context, habitsState) {
+        return BlocBuilder<TasksBloc, TasksState>(
+          builder: (context, tasksState) {
+            final todayStr = AppDateUtils.getTodayString();
+            int completedToday = 0;
+            int totalToday = 0;
+            int currentStreak = 0;
+
+            if (habitsState is HabitsLoaded) {
+              final habitsToday = habitsState.habitsToday;
+              totalToday += habitsToday.length;
+              completedToday += habitsToday.where((h) => h.completedDates.contains(todayStr)).length;
+              for (final h in habitsState.allHabits) {
+                if (h.streak > currentStreak) currentStreak = h.streak;
+              }
+            }
+
+            if (tasksState is TasksLoaded) {
+              final tasksToday = tasksState.effectiveAllTasks;
+              totalToday += tasksToday.length;
+              completedToday += tasksToday.where((t) => t.completed || t.completedDates.contains(todayStr)).length;
+            }
+
+            final accuracy = totalToday > 0 ? (completedToday / totalToday) : 1.0;
+
+            if (currentStreak > 0 && completedToday == 0 && totalToday > 0) {
+              return _buildSingleAlertPill(
+                icon: LucideIcons.alertTriangle,
+                text: 'Your streak is at risk',
+                iconColor: Colors.amber.shade800,
+                bgColor: const Color(0xFFFEF3C7),
+                borderColor: const Color(0xFFFDE68A),
+              );
+            }
+
+            if (totalToday > 0 && accuracy < 0.50) {
+              return _buildSingleAlertPill(
+                icon: LucideIcons.clock,
+                text: 'Low productivity detected',
+                iconColor: Colors.red.shade700,
+                bgColor: const Color(0xFFFEE2E2),
+                borderColor: const Color(0xFFFCA5A5),
+              );
+            }
+
+            if ((totalToday > 0 && accuracy >= 0.80) || currentStreak >= 3) {
+              return _buildSingleAlertPill(
+                icon: LucideIcons.zap,
+                text: 'Great consistency!',
+                iconColor: Colors.green.shade700,
+                bgColor: const Color(0xFFDCFCE7),
+                borderColor: const Color(0xFF86EFAC),
+              );
+            }
+
+            return const SizedBox.shrink();
+          },
+        );
+      },
     );
   }
 
@@ -1911,7 +1947,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${(loaded.weeklyAccuracy * 100).toInt()}%',
+                      '${loaded.weeklyAccuracy.clamp(0.0, 100.0).toInt()}%',
                       style: GoogleFonts.plusJakartaSans(color: tokens.contentPrimary, fontWeight: FontWeight.w900, fontSize: 20),
                     ),
                     Text(

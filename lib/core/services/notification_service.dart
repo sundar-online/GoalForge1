@@ -1,3 +1,5 @@
+import 'notification_platform_stub.dart'
+    if (dart.library.html) 'notification_platform_web.dart';
 import '../utils/logger.dart';
 
 class NotificationChannel {
@@ -41,12 +43,16 @@ class NotificationService {
   Future<void> initialize() async {
     try {
       AppLogger.i('Initializing NotificationService channels...');
-      // Initialize channels
       _initialized = true;
       AppLogger.i('NotificationService initialized successfully.');
     } catch (e, stack) {
       AppLogger.e('Failed to initialize NotificationService', e, stack);
     }
+  }
+
+  /// Requests notification permissions on supported platforms
+  Future<bool> requestPermission() async {
+    return await NotificationPlatform.requestPermission();
   }
 
   /// Schedules a recurring daily habit reminder notification
@@ -78,7 +84,10 @@ class NotificationService {
     required String sessionType,
     required int minutes,
   }) async {
+    const title = 'Focus Session Complete';
+    final body = 'Your $minutes-minute session has ended.';
     AppLogger.i('Deep Focus Session Complete! ($minutes mins, +100 XP awarded)');
+    NotificationPlatform.showNotification(title: title, body: body);
   }
 
   /// Cancels a scheduled notification by ID

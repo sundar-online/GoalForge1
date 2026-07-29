@@ -831,7 +831,8 @@ class _FocusSessionPageState extends State<FocusSessionPage> {
           // Sound Presets Buttons
           Row(
             children: sounds.map((sound) {
-              final isSelected = sound == _selectedSoundAlert;
+              final activeSound = _latestFocusState?.selectedSound ?? _selectedSoundAlert;
+              final isSelected = sound.toUpperCase() == activeSound.toUpperCase();
 
               return Expanded(
                 child: Container(

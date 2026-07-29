@@ -710,7 +710,9 @@ class _GoalsPageState extends State<GoalsPage> {
 
     // Daily progress calculation
     final dailyProgress = _calculateDailyProgress(goal, habits, todayStr);
-    final completedHabitsCount = habits.where((h) => h.completedDates.contains(todayStr) || h.completed).length;
+    // Completion is determined solely by completedDates -- the persisted
+    // `habit.completed` boolean is stale after midnight and must not be used.
+    final completedHabitsCount = habits.where((h) => h.completedDates.contains(todayStr)).length;
     final dailyHabitRatio = habits.isEmpty ? 0.0 : (completedHabitsCount / habits.length).clamp(0.0, 1.0);
 
     // Status flags
@@ -1384,7 +1386,9 @@ class _GoalsPageState extends State<GoalsPage> {
 
   // Type-specific Habit Row (Matching Reference Image)
   Widget _buildHabitRow(BuildContext context, Goal goal, Habit habit, String todayStr) {
-    final isCompletedToday = habit.completedDates.contains(todayStr) || habit.completed;
+    // Solely date-scoped: do NOT use `habit.completed` which is a persisted
+    // boolean that stays true after midnight, causing stale green state.
+    final isCompletedToday = habit.completedDates.contains(todayStr);
     final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final todayWeekday = weekdays[DateTime.now().weekday - 1];
     final isRestDay = habit.scheduleDays.isNotEmpty && !habit.scheduleDays.contains(todayWeekday);

@@ -3,9 +3,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart' as auth;
+import '../../../habits/presentation/bloc/habits_bloc.dart';
+import '../../../habits/presentation/bloc/habits_state.dart';
+import '../../../tasks/presentation/bloc/tasks_bloc.dart';
+import '../../../tasks/presentation/bloc/tasks_state.dart';
+import '../../../analytics/presentation/widgets/monthly_trends_view.dart';
+import '../../../analytics/presentation/widgets/weekly_activity_view.dart';
+import '../../../../core/domain/models/task_log.dart';
+import '../../../../core/domain/repositories/tasks_repository.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
@@ -24,6 +33,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   bool _isDarkMode = false;
+  int _selectedAnalyticsTabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -160,24 +170,8 @@ class _DashboardPageState extends State<DashboardPage> {
                         ],
                         const SizedBox(height: 24.0),
 
-                        // Local Tab Switcher
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(6.0),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceContainerLow,
-                              borderRadius: BorderRadius.circular(16.0),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildTabButton('OVERVIEW', Icons.dashboard, true),
-                                _buildTabButton('GOALS', Icons.track_changes, false, () => widget.onNavigateToTab(1)),
-                                _buildTabButton('TASKS', Icons.bolt, false, () => widget.onNavigateToTab(2)),
-                              ],
-                            ),
-                          ),
-                        ),
+                        // Task Analytics & Trends Section (MONTHLY TRENDS | WEEKLY ACTIVITY)
+                        _buildTaskAnalyticsSection(theme),
                         const SizedBox(height: 24.0),
 
                         // Quick Thoughts Card
@@ -243,52 +237,75 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                         const SizedBox(height: 24.0),
 
-                        // Performance Alerts Grid
+                        // Performance Alert Card
                         Text(
                           'PERFORMANCE STATUS',
                           style: theme.textTheme.labelLarge?.copyWith(color: AppColors.outline, letterSpacing: 0.1),
                         ),
                         const SizedBox(height: 8.0),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final gridIsWide = constraints.maxWidth > 500;
-                            return GridView.count(
-                              crossAxisCount: gridIsWide ? 2 : 1,
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              mainAxisSpacing: 12.0,
-                              crossAxisSpacing: 12.0,
-                              childAspectRatio: gridIsWide ? 3.0 : 4.5,
-                              children: [
-                                _buildAlertCard(
-                                  icon: Icons.warning,
-                                  text: 'Your streak is at risk',
-                                  textColor: AppColors.alertWarningText,
-                                  bgColor: AppColors.alertWarningBg,
-                                  borderColor: AppColors.alertWarningBorder,
-                                ),
-                                _buildAlertCard(
-                                  icon: Icons.error,
-                                  text: 'Low productivity detected',
-                                  textColor: AppColors.alertErrorText,
-                                  bgColor: AppColors.alertErrorBg,
-                                  borderColor: AppColors.alertErrorBorder,
-                                ),
-                                _buildAlertCard(
-                                  icon: Icons.auto_awesome,
-                                  text: 'Great consistency!',
-                                  textColor: AppColors.alertSuccessText,
-                                  bgColor: AppColors.alertSuccessBg,
-                                  borderColor: AppColors.alertSuccessBorder,
-                                ),
-                                _buildAlertCard(
-                                  icon: Icons.insights,
-                                  text: "You're improving",
-                                  textColor: AppColors.alertInfoText,
-                                  bgColor: AppColors.alertInfoBg,
-                                  borderColor: AppColors.alertInfoBorder,
-                                ),
-                              ],
+                        BlocBuilder<HabitsBloc, HabitsState>(
+                          builder: (context, habitsState) {
+                            return BlocBuilder<TasksBloc, TasksState>(
+                              builder: (context, tasksState) {
+                                final todayStr = AppDateUtils.getTodayString();
+                                int completedToday = 0;
+                                int totalToday = 0;
+                                int currentStreak = 0;
+
+                                if (habitsState is HabitsLoaded) {
+                                  final habitsToday = habitsState.habitsToday;
+                                  totalToday += habitsToday.length;
+                                  completedToday += habitsToday.where((h) => h.completedDates.contains(todayStr)).length;
+                                  for (final h in habitsState.allHabits) {
+                                    if (h.streak > currentStreak) currentStreak = h.streak;
+                                  }
+                                }
+
+                                if (tasksState is TasksLoaded) {
+                                  final tasksToday = tasksState.effectiveAllTasks;
+                                  totalToday += tasksToday.length;
+                                  completedToday += tasksToday.where((t) => t.completed || t.completedDates.contains(todayStr)).length;
+                                }
+
+                                final accuracy = totalToday > 0 ? (completedToday / totalToday) : 1.0;
+
+                                Widget alertWidget;
+                                if (currentStreak > 0 && completedToday == 0 && totalToday > 0) {
+                                  alertWidget = _buildAlertCard(
+                                    icon: Icons.warning,
+                                    text: 'Your streak is at risk',
+                                    textColor: AppColors.alertWarningText,
+                                    bgColor: AppColors.alertWarningBg,
+                                    borderColor: AppColors.alertWarningBorder,
+                                  );
+                                } else if (totalToday > 0 && accuracy < 0.50) {
+                                  alertWidget = _buildAlertCard(
+                                    icon: Icons.error,
+                                    text: 'Low productivity detected',
+                                    textColor: AppColors.alertErrorText,
+                                    bgColor: AppColors.alertErrorBg,
+                                    borderColor: AppColors.alertErrorBorder,
+                                  );
+                                } else if ((totalToday > 0 && accuracy >= 0.80) || currentStreak >= 3) {
+                                  alertWidget = _buildAlertCard(
+                                    icon: Icons.auto_awesome,
+                                    text: 'Great consistency!',
+                                    textColor: AppColors.alertSuccessText,
+                                    bgColor: AppColors.alertSuccessBg,
+                                    borderColor: AppColors.alertSuccessBorder,
+                                  );
+                                } else {
+                                  alertWidget = _buildAlertCard(
+                                    icon: Icons.insights,
+                                    text: "You're improving",
+                                    textColor: AppColors.alertInfoText,
+                                    bgColor: AppColors.alertInfoBg,
+                                    borderColor: AppColors.alertInfoBorder,
+                                  );
+                                }
+
+                                return alertWidget;
+                              },
                             );
                           },
                         ),
@@ -338,6 +355,111 @@ class _DashboardPageState extends State<DashboardPage> {
           }
           return const SizedBox.shrink();
         },
+      ),
+    );
+  }
+
+  // --- Task Analytics & Operations Module (MONTHLY TRENDS | WEEKLY ACTIVITY) ---
+  Widget _buildTaskAnalyticsSection(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final taskLogs = sl.isRegistered<TasksRepository>() ? sl<TasksRepository>().getTaskLogs() : <String, TaskLog>{};
+
+    return BlocBuilder<HabitsBloc, HabitsState>(
+      builder: (context, habitsState) {
+        return BlocBuilder<TasksBloc, TasksState>(
+          builder: (context, tasksState) {
+            int habitsTotal = 0;
+            int habitsDone = 0;
+            int tasksTotal = 0;
+            int tasksDone = 0;
+
+            if (habitsState is HabitsLoaded) {
+              habitsTotal = habitsState.totalTodayCount;
+              habitsDone = habitsState.completedTodayCount;
+            }
+            if (tasksState is TasksLoaded) {
+              tasksTotal = tasksState.totalCount;
+              tasksDone = tasksState.completedCount;
+            }
+
+            final total = habitsTotal + tasksTotal;
+            final done = habitsDone + tasksDone;
+            final accuracy = total > 0 ? ((done / total) * 100.0) : 100.0;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Tab Selector Pill
+                Container(
+                  padding: const EdgeInsets.all(4.0),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF13141C) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(14.0),
+                    border: Border.all(color: isDark ? const Color(0xFF2C2D35) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildAnalyticsTabItem('MONTHLY TRENDS', 0, isDark),
+                      _buildAnalyticsTabItem('WEEKLY ACTIVITY', 1, isDark),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16.0),
+
+                // Toggled Analytics View
+                if (_selectedAnalyticsTabIndex == 0)
+                  MonthlyTrendsView(taskLogs: taskLogs)
+                else
+                  WeeklyActivityView(
+                    taskLogs: taskLogs,
+                    weeklyAccuracyPercent: accuracy,
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAnalyticsTabItem(String label, int index, bool isDark) {
+    final isSelected = _selectedAnalyticsTabIndex == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedAnalyticsTabIndex = index;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? const Color(0xFF2C2D35) : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10.0),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected
+                ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+            fontWeight: FontWeight.w900,
+            fontSize: 11.5,
+            letterSpacing: 0.6,
+          ),
+        ),
       ),
     );
   }

@@ -10,6 +10,7 @@ import '../../utils/logger.dart';
 
 import '../../services/streak_service.dart';
 import '../../services/progress_service.dart';
+import '../../utils/date_utils.dart';
 
 class GoalsRepositoryImpl implements GoalsRepository {
   final FirebaseFirestore _firestore;
@@ -150,12 +151,25 @@ class GoalsRepositoryImpl implements GoalsRepository {
 
     final newStreak = _streakService.calculateStreak(dates);
     final bestStreak = _streakService.calculateBestStreak(dates, habit.bestStreak);
+
+    // For timed habits, ensure timeSpent is logged when completing directly
+    int newTimeSpent = habit.timeSpent;
+    if (habit.type == 'time' && habit.targetTime > 0) {
+      if (!isAlreadyCompleted && habit.timeSpent == 0) {
+        newTimeSpent = habit.targetTime;
+      } else if (isAlreadyCompleted && habit.timeSpent == habit.targetTime) {
+        newTimeSpent = 0;
+      }
+    }
+
     final updatedHabit = habit.copyWith(
       completedDates: dates,
       completed: !isAlreadyCompleted,
       streak: newStreak,
       bestStreak: bestStreak,
       lastCompletedDate: isAlreadyCompleted ? habit.lastCompletedDate : dateStr,
+      lastProgressDate: dateStr,
+      timeSpent: newTimeSpent,
     );
 
     await upsertHabit(updatedHabit);
@@ -195,9 +209,19 @@ class GoalsRepositoryImpl implements GoalsRepository {
     if (rawHabit == null) return;
 
     final habit = Habit.fromJson(rawHabit);
+    final todayStr = AppDateUtils.getTodayString();
+
+    // Detect a day rollover: if the last progress write was on a different
+    // calendar date, reset transient fields to 0 so we don't carry yesterday's
+    // minutes/count forward into today's display.
+    final isNewDay = habit.lastProgressDate != null && habit.lastProgressDate != todayStr;
+    final baseTimeSpent = isNewDay ? 0 : habit.timeSpent;
+    final baseCurrentCount = isNewDay ? 0 : habit.currentCount;
+
     final updatedHabit = habit.copyWith(
-      timeSpent: timeSpent ?? habit.timeSpent,
-      currentCount: currentCount ?? habit.currentCount,
+      timeSpent: timeSpent ?? baseTimeSpent,
+      currentCount: currentCount ?? baseCurrentCount,
+      lastProgressDate: todayStr,
     );
 
     await upsertHabit(updatedHabit);

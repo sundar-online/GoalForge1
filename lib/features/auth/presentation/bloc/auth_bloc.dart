@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/utils/password_validator.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/get_current_user.dart';
+import '../../domain/usecases/send_password_reset_email.dart';
 import '../../domain/usecases/sign_in_with_email.dart';
 import '../../domain/usecases/sign_in_with_google.dart';
 import '../../domain/usecases/sign_up_with_email.dart';
@@ -17,6 +19,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SignInWithGoogle signInWithGoogle;
   final SignOut signOut;
   final GetCurrentUser getCurrentUser;
+  final SendPasswordResetEmail? sendPasswordResetEmail;
   final AuthRepository authRepository;
   
   StreamSubscription<User?>? _authStateSubscription;
@@ -27,6 +30,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.signInWithGoogle,
     required this.signOut,
     required this.getCurrentUser,
+    this.sendPasswordResetEmail,
     required this.authRepository,
   })  : super(AuthInitial()) {
     
@@ -35,6 +39,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<SignUpRequested>(_onSignUpRequested);
     on<GoogleSignInRequested>(_onGoogleSignInRequested);
     on<SignOutRequested>(_onSignOutRequested);
+    on<PasswordResetRequested>(_onPasswordResetRequested);
     on<_AuthUserChanged>(_onAuthUserChanged);
 
     // Subscribe to Firebase Auth state stream changes
@@ -62,7 +67,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      final user = await signInWithEmail(event.email, event.password);
+      final normalizedEmail = AuthValidator.normalizeEmail(event.email);
+      final user = await signInWithEmail(normalizedEmail, event.password);
       emit(Authenticated(user));
     } catch (e) {
       final failure = FailureMapper.map(e);
@@ -76,13 +82,37 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
+      final normalizedEmail = AuthValidator.normalizeEmail(event.email);
       final user = await signUpWithEmail(
-        event.email,
+        normalizedEmail,
         event.password,
         event.displayName,
       );
       emit(Authenticated(user));
     } catch (e) {
+      final failure = FailureMapper.map(e);
+      emit(AuthError(failure.message));
+    }
+  }
+
+  Future<void> _onPasswordResetRequested(
+    PasswordResetRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    try {
+      final normalizedEmail = AuthValidator.normalizeEmail(event.email);
+      if (sendPasswordResetEmail != null) {
+        await sendPasswordResetEmail!(normalizedEmail);
+      } else {
+        await authRepository.sendPasswordResetEmail(normalizedEmail);
+      }
+      // Always show generic security response per Option A
+      emit(const PasswordResetSent(
+        'If an account exists with this email, a password reset link has been sent.',
+      ));
+    } catch (e) {
+      // Even if network exception occurs, emit generic response or failure
       final failure = FailureMapper.map(e);
       emit(AuthError(failure.message));
     }

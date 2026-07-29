@@ -117,6 +117,10 @@ class _TodayForgePageState extends State<TodayForgePage> {
   // --- Header ---
   Widget _buildHeader(ThemeData theme) {
     final tokens = AppThemeTokens.of(context);
+    // Use narrow mode (icon-only button) on screens narrower than 400px so the
+    // title has enough room and never gets clipped unnecessarily.
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 400.0;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -178,28 +182,36 @@ class _TodayForgePageState extends State<TodayForgePage> {
           },
           child: _isAddingTask
               ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isNarrow ? 10.0 : 16.0,
+                    vertical: 10.0,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12.0),
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(LucideIcons.x, color: Color(0xFFEF4444), size: 16.0),
-                      const SizedBox(width: 4.0),
-                      Text(
-                        'Cancel',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: const Color(0xFFEF4444),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13.0,
+                  child: isNarrow
+                      ? const Icon(LucideIcons.x, color: Color(0xFFEF4444), size: 18.0)
+                      : Row(
+                          children: [
+                            const Icon(LucideIcons.x, color: Color(0xFFEF4444), size: 16.0),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              'Cancel',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: const Color(0xFFEF4444),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.0,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 )
               : Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 10.0),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isNarrow ? 10.0 : 18.0,
+                    vertical: 10.0,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(12.0),
@@ -207,20 +219,22 @@ class _TodayForgePageState extends State<TodayForgePage> {
                       BoxShadow(color: Color(0x1A000000), blurRadius: 8.0, offset: Offset(0, 4)),
                     ],
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(LucideIcons.plus, color: Colors.white, size: 18.0),
-                      const SizedBox(width: 6.0),
-                      Text(
-                        'Add Task',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13.0,
+                  child: isNarrow
+                      ? const Icon(LucideIcons.plus, color: Colors.white, size: 20.0)
+                      : Row(
+                          children: [
+                            const Icon(LucideIcons.plus, color: Colors.white, size: 18.0),
+                            const SizedBox(width: 6.0),
+                            Text(
+                              'Add Task',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.0,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
         ),
       ],
@@ -1103,6 +1117,9 @@ class _TodayForgePageState extends State<TodayForgePage> {
     final startedStr = _formatStartedDate(createdAt);
     final activeDays = _calculateActiveDays(createdAt);
 
+    // Use IntrinsicWidth so the row shrinks to its content when used inside a
+    // Wrap, but individual text values truncate gracefully if the available
+    // inline space is truly exhausted.
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1117,12 +1134,16 @@ class _TodayForgePageState extends State<TodayForgePage> {
             fontWeight: FontWeight.w500,
           ),
         ),
-        Text(
-          startedStr,
-          style: GoogleFonts.plusJakartaSans(
-            color: tokens.contentSecondary,
-            fontSize: 11.0,
-            fontWeight: FontWeight.w800,
+        Flexible(
+          child: Text(
+            startedStr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              color: tokens.contentSecondary,
+              fontSize: 11.0,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         const SizedBox(width: 8.0),
@@ -1136,12 +1157,16 @@ class _TodayForgePageState extends State<TodayForgePage> {
             fontWeight: FontWeight.w500,
           ),
         ),
-        Text(
-          '$activeDays ${activeDays == 1 ? "Day" : "Days"}',
-          style: GoogleFonts.plusJakartaSans(
-            color: tokens.contentSecondary,
-            fontSize: 11.0,
-            fontWeight: FontWeight.w800,
+        Flexible(
+          child: Text(
+            '$activeDays ${activeDays == 1 ? "Day" : "Days"}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              color: tokens.contentSecondary,
+              fontSize: 11.0,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -1190,12 +1215,14 @@ class _TodayForgePageState extends State<TodayForgePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  // Wrap lets badges flow to a second line on narrow screens
+                  // instead of overflowing horizontally.
+                  Wrap(
+                    spacing: 6.0,
+                    runSpacing: 4.0,
                     children: [
                       _buildPriorityChip(context, 'Medium'),
-                      const SizedBox(width: 6.0),
                       _buildScheduleTypeChip(context, habit.type),
-                      const SizedBox(width: 6.0),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
                         decoration: BoxDecoration(
@@ -1203,6 +1230,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                           borderRadius: BorderRadius.circular(6.0),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Text('🔥', style: TextStyle(fontSize: 10.0)),
                             const SizedBox(width: 3.0),
@@ -1283,12 +1311,14 @@ class _TodayForgePageState extends State<TodayForgePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                // Wrap lets badges flow to a second line on narrow screens
+                // instead of overflowing horizontally.
+                Wrap(
+                  spacing: 6.0,
+                  runSpacing: 4.0,
                   children: [
                     _buildPriorityChip(context, 'Medium'),
-                    const SizedBox(width: 6.0),
                     _buildScheduleTypeChip(context, habit.type),
-                    const SizedBox(width: 6.0),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
                       decoration: BoxDecoration(
@@ -1296,6 +1326,7 @@ class _TodayForgePageState extends State<TodayForgePage> {
                         borderRadius: BorderRadius.circular(6.0),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text('🔥', style: TextStyle(fontSize: 10.0)),
                           const SizedBox(width: 3.0),
@@ -1390,7 +1421,10 @@ class _TodayForgePageState extends State<TodayForgePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  // Wrap for consistency — single chip today but may grow later.
+                  Wrap(
+                    spacing: 6.0,
+                    runSpacing: 4.0,
                     children: [
                       _buildPriorityChip(context, task.priority),
                     ],
@@ -1459,7 +1493,10 @@ class _TodayForgePageState extends State<TodayForgePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                // Wrap for consistency — single chip today but may grow later.
+                Wrap(
+                  spacing: 6.0,
+                  runSpacing: 4.0,
                   children: [
                     _buildPriorityChip(context, task.priority),
                   ],

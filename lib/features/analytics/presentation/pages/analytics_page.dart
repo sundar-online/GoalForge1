@@ -5,9 +5,12 @@ import '../../../../core/domain/models/goal.dart';
 import '../../../../core/responsive/responsive_layout.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_card.dart';
+import '../../../../core/domain/repositories/tasks_repository.dart';
 import '../bloc/analytics_bloc.dart';
 import '../bloc/analytics_event.dart';
 import '../bloc/analytics_state.dart';
+import '../widgets/monthly_trends_view.dart';
+import '../widgets/weekly_activity_view.dart';
 
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({super.key});
@@ -18,6 +21,7 @@ class AnalyticsPage extends StatefulWidget {
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
   AnalyticsLoaded? _latestState;
+  int _selectedViewIndex = 0; // 0: Overview, 1: Monthly Trends, 2: Weekly Activity
 
   @override
   Widget build(BuildContext context) {
@@ -72,21 +76,30 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                             fontSize: 10.0,
                           ),
                         ),
+                        const SizedBox(height: 16.0),
+
+                        // Task Analytics Module Header & View Selector Tabs
+                        _buildViewSelectorTabs(theme.brightness == Brightness.dark),
                         const SizedBox(height: 20.0),
 
-                        // Executive Bento Grid
+                        // View Body Switching
+                        if (_selectedViewIndex == 0) ...[
+                          MonthlyTrendsView(taskLogs: sl<TasksRepository>().getTaskLogs()),
+                        ] else ...[
+                          WeeklyActivityView(
+                            taskLogs: sl<TasksRepository>().getTaskLogs(),
+                            weeklyAccuracyPercent: accuracy,
+                          ),
+                        ],
+                        const SizedBox(height: 28.0),
+
+                        // Executive Bento Grid & Mastery Metrics
                         _buildExecutiveBentoGrid(theme, accuracy, focusMins, totalXp, level, levelRatio, activeHabits),
                         const SizedBox(height: 20.0),
-
-                        // 7-Day XP Bar Visualizer Card
                         _buildWeeklyXpVisualizerCard(theme, weeklyXpData),
                         const SizedBox(height: 20.0),
-
-                        // Goal Mastery Distribution Card
                         _buildGoalMasteryCard(theme, goals),
                         const SizedBox(height: 20.0),
-
-                        // Badges Showcase Card
                         _buildBadgesShowcaseCard(theme, badges),
                         const SizedBox(height: 32.0),
                       ],
@@ -97,6 +110,62 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildViewSelectorTabs(bool isDark) {
+    final tabs = ['MONTHLY TRENDS', 'WEEKLY ACTIVITY'];
+
+    return Container(
+      padding: const EdgeInsets.all(4.0),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF13141C) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(14.0),
+        border: Border.all(color: isDark ? const Color(0xFF2C2D35) : const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(tabs.length, (idx) {
+          final isSelected = _selectedViewIndex == idx;
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedViewIndex = idx;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (isDark ? const Color(0xFF2C2D35) : Colors.white)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(10.0),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Text(
+                tabs[idx],
+                style: TextStyle(
+                  color: isSelected
+                      ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                      : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11.5,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }

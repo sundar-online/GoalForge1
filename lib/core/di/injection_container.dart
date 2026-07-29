@@ -23,6 +23,7 @@ import '../data/repositories/events_repository_impl.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/domain/usecases/get_current_user.dart';
+import '../../features/auth/domain/usecases/send_password_reset_email.dart';
 import '../../features/auth/domain/usecases/sign_in_with_email.dart';
 import '../../features/auth/domain/usecases/sign_in_with_google.dart';
 import '../../features/auth/domain/usecases/sign_out.dart';
@@ -37,6 +38,7 @@ import '../../features/events/presentation/bloc/events_bloc.dart';
 import '../../features/focus/presentation/bloc/focus_bloc.dart';
 import '../../features/analytics/presentation/bloc/analytics_bloc.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
+import '../services/focus_audio_service.dart';
 import '../services/ai_insights_service.dart';
 import '../services/notification_service.dart';
 import '../lifecycle/lifecycle_watcher.dart';
@@ -56,6 +58,7 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<NotificationService>(() => NotificationService());
   await sl<NotificationService>().initialize();
+  sl.registerLazySingleton<FocusAudioService>(() => FocusAudioService());
   sl.registerLazySingleton<AiInsightsService>(() => const AiInsightsService());
 
   // Firebase Clients & Google Sign In dependencies
@@ -143,6 +146,7 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<SignInWithGoogle>(() => SignInWithGoogle(sl<AuthRepository>()));
   sl.registerLazySingleton<SignOut>(() => SignOut(sl<AuthRepository>()));
   sl.registerLazySingleton<GetCurrentUser>(() => GetCurrentUser(sl<AuthRepository>()));
+  sl.registerLazySingleton<SendPasswordResetEmail>(() => SendPasswordResetEmail(sl<AuthRepository>()));
   // BLoCs
   sl.registerFactory<AuthBloc>(
     () => AuthBloc(
@@ -151,6 +155,7 @@ Future<void> initDependencies() async {
       signInWithGoogle: sl<SignInWithGoogle>(),
       signOut: sl<SignOut>(),
       getCurrentUser: sl<GetCurrentUser>(),
+      sendPasswordResetEmail: sl<SendPasswordResetEmail>(),
       authRepository: sl<AuthRepository>(),
     ),
   );
@@ -176,6 +181,7 @@ Future<void> initDependencies() async {
     () => HabitsBloc(
       goalsRepository: sl<GoalsRepository>(),
       gamificationService: sl<GamificationService>(),
+      lifecycleWatcher: sl<LifecycleWatcher>(),
     ),
   );
 
@@ -202,6 +208,9 @@ Future<void> initDependencies() async {
     () => FocusBloc(
       focusRepository: sl<FocusRepository>(),
       gamificationService: sl<GamificationService>(),
+      lifecycleWatcher: sl<LifecycleWatcher>(),
+      notificationService: sl<NotificationService>(),
+      audioService: sl<FocusAudioService>(),
     ),
   );
 

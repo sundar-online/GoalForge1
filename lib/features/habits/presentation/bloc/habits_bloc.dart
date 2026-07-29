@@ -2,24 +2,38 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/domain/models/goal.dart';
 import '../../../../core/domain/repositories/goals_repository.dart';
+import '../../../../core/lifecycle/lifecycle_watcher.dart';
 import '../../../../core/services/gamification_service.dart';
 import '../../../../core/utils/date_utils.dart';
 import 'habits_event.dart';
 import 'habits_state.dart';
 
-class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
+class HabitsBloc extends Bloc<HabitsEvent, HabitsState> implements AppLifecycleListener {
   final GoalsRepository _goalsRepository;
   final GamificationService _gamificationService;
+  final LifecycleWatcher? _lifecycleWatcher;
 
   StreamSubscription? _habitsSubscription;
   StreamSubscription? _goalsSubscription;
 
+  /// Fires once just after the next calendar midnight to trigger a
+  /// DayRolloverEvent. Re-schedules itself for the following midnight.
+  Timer? _midnightTimer;
+
+  /// Tracks the last date string seen so the resume hook only fires an event
+  /// when an actual date change has occurred (not just a foreground/background
+  /// cycle within the same day).
+  String _lastKnownDate = '';
+
   HabitsBloc({
     required GoalsRepository goalsRepository,
     required GamificationService gamificationService,
+    LifecycleWatcher? lifecycleWatcher,
   })  : _goalsRepository = goalsRepository,
         _gamificationService = gamificationService,
+        _lifecycleWatcher = lifecycleWatcher,
         super(HabitsInitial()) {
+    _lifecycleWatcher?.addListener(this);
     on<SubscribeToHabits>(_onSubscribeToHabits);
     on<_HabitsDataChanged>(_onHabitsDataChanged);
     on<ToggleHabitCompletionEvent>(_onToggleHabitCompletion);
@@ -29,12 +43,62 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
     on<CreateStandAloneHabitEvent>(_onCreateStandAloneHabit);
     on<DeleteHabitEvent>(_onDeleteHabit);
     on<SearchHabitsEvent>(_onSearchHabits);
+    on<DayRolloverEvent>(_onDayRollover);
   }
+
+  // ---------------------------------------------------------------------------
+  // Midnight Timer helpers
+  // ---------------------------------------------------------------------------
+
+  /// Schedules a one-shot Timer to fire immediately after the next calendar
+  /// midnight. When it fires it adds a DayRolloverEvent and re-schedules
+  /// itself for the following midnight.
+  Timer _scheduleMidnightTimer() {
+    final now = DateTime.now();
+    // Add 1-second buffer so we do not land exactly on 00:00:00.000
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1, 0, 0, 1);
+    final delay = nextMidnight.difference(now);
+    return Timer(delay, () {
+      if (!isClosed) {
+        add(const DayRolloverEvent());
+        // Re-schedule for the following midnight
+        _midnightTimer = _scheduleMidnightTimer();
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // AppLifecycleListener -- called when the app returns to the foreground
+  // ---------------------------------------------------------------------------
+
+  @override
+  void onResumed() {
+    final today = AppDateUtils.getTodayString();
+    // Only fire if the date has actually changed since the last seen date.
+    if (_lastKnownDate.isNotEmpty && today != _lastKnownDate && !isClosed) {
+      add(const DayRolloverEvent());
+    }
+    _lastKnownDate = today;
+  }
+
+  @override
+  void onPaused() {}
+
+  @override
+  void onDetached() {}
+
+  @override
+  void onInactive() {}
+
+  // ---------------------------------------------------------------------------
+  // Event handlers
+  // ---------------------------------------------------------------------------
 
   void _onSubscribeToHabits(SubscribeToHabits event, Emitter<HabitsState> emit) {
     emit(HabitsLoading());
     _habitsSubscription?.cancel();
     _goalsSubscription?.cancel();
+    _midnightTimer?.cancel();
 
     _habitsSubscription = _goalsRepository.watchAllHabits().skip(1).listen((_) {
       if (!isClosed) add(const _HabitsDataChanged());
@@ -44,10 +108,18 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
       if (!isClosed) add(const _HabitsDataChanged());
     });
 
+    _lastKnownDate = AppDateUtils.getTodayString();
+    _midnightTimer = _scheduleMidnightTimer();
+
     _recalculateAndEmit(emit);
   }
 
   void _onHabitsDataChanged(_HabitsDataChanged event, Emitter<HabitsState> emit) {
+    _recalculateAndEmit(emit);
+  }
+
+  void _onDayRollover(DayRolloverEvent event, Emitter<HabitsState> emit) {
+    _lastKnownDate = AppDateUtils.getTodayString();
     _recalculateAndEmit(emit);
   }
 
@@ -78,6 +150,8 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
       }).toList();
 
       final totalToday = habitsToday.length;
+      // Completion is determined solely by whether todayStr appears in
+      // completedDates -- never by the stale `habit.completed` boolean.
       final completedToday = habitsToday.where((h) => h.completedDates.contains(todayStr)).length;
       final focusPct = totalToday > 0 ? (completedToday / totalToday) * 100.0 : 100.0;
 
@@ -144,14 +218,20 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
   Future<void> _onLogHabitTime(LogHabitTimeEvent event, Emitter<HabitsState> emit) async {
     try {
       final habit = _goalsRepository.getAllHabits().firstWhere((h) => h.id == event.habitId);
-      final newTime = habit.timeSpent + event.minutes;
+      final todayStr = AppDateUtils.getTodayString();
+
+      // Account for day rollover: if the habit was last logged on a previous
+      // day, start accumulation from 0 rather than adding to yesterday's total.
+      final isNewDay = habit.lastProgressDate != null && habit.lastProgressDate != todayStr;
+      final baseTime = isNewDay ? 0 : habit.timeSpent;
+      final newTime = baseTime + event.minutes;
+
       await _goalsRepository.updateHabitProgress(
         event.habitId,
         timeSpent: newTime,
       );
       // Auto-complete if target reached
       if (newTime >= habit.targetTime && habit.targetTime > 0) {
-        final todayStr = AppDateUtils.getTodayString();
         if (!habit.completedDates.contains(todayStr)) {
           await _goalsRepository.toggleHabitCompletion(event.habitId, todayStr);
           await _gamificationService.awardXp(50);
@@ -165,14 +245,19 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
   Future<void> _onUpdateHabitCount(UpdateHabitCountEvent event, Emitter<HabitsState> emit) async {
     try {
       final habit = _goalsRepository.getAllHabits().firstWhere((h) => h.id == event.habitId);
-      final newCount = (habit.currentCount + event.delta).clamp(0, 9999);
+      final todayStr = AppDateUtils.getTodayString();
+
+      // Account for day rollover in the accumulated count.
+      final isNewDay = habit.lastProgressDate != null && habit.lastProgressDate != todayStr;
+      final baseCount = isNewDay ? 0 : habit.currentCount;
+      final newCount = (baseCount + event.delta).clamp(0, 9999);
+
       await _goalsRepository.updateHabitProgress(
         event.habitId,
         currentCount: newCount,
       );
       // Auto-complete if target reached
       if (newCount >= habit.targetCount && habit.targetCount > 0) {
-        final todayStr = AppDateUtils.getTodayString();
         if (!habit.completedDates.contains(todayStr)) {
           await _goalsRepository.toggleHabitCompletion(event.habitId, todayStr);
           await _gamificationService.awardXp(50);
@@ -185,8 +270,10 @@ class HabitsBloc extends Bloc<HabitsEvent, HabitsState> {
 
   @override
   Future<void> close() {
+    _lifecycleWatcher?.removeListener(this);
     _habitsSubscription?.cancel();
     _goalsSubscription?.cancel();
+    _midnightTimer?.cancel();
     return super.close();
   }
 }

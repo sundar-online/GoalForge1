@@ -22,6 +22,8 @@ class FocusLoaded extends FocusState {
   final List<FocusSession> sessions;
   final int totalFocusMinutesToday;
   final int totalSessionsCount;
+  final DateTime? targetEndTime;
+  final bool hasPlayedAlarm;
 
   const FocusLoaded({
     required this.selectedDurationMinutes,
@@ -33,6 +35,8 @@ class FocusLoaded extends FocusState {
     required this.sessions,
     this.totalFocusMinutesToday = 0,
     this.totalSessionsCount = 0,
+    this.targetEndTime,
+    this.hasPlayedAlarm = false,
   });
 
   String get formattedRemainingTime {
@@ -57,6 +61,8 @@ class FocusLoaded extends FocusState {
     List<FocusSession>? sessions,
     int? totalFocusMinutesToday,
     int? totalSessionsCount,
+    Object? targetEndTime = _sentinel,
+    bool? hasPlayedAlarm,
   }) {
     return FocusLoaded(
       selectedDurationMinutes: selectedDurationMinutes ?? this.selectedDurationMinutes,
@@ -68,6 +74,8 @@ class FocusLoaded extends FocusState {
       sessions: sessions ?? this.sessions,
       totalFocusMinutesToday: totalFocusMinutesToday ?? this.totalFocusMinutesToday,
       totalSessionsCount: totalSessionsCount ?? this.totalSessionsCount,
+      targetEndTime: targetEndTime == _sentinel ? this.targetEndTime : targetEndTime as DateTime?,
+      hasPlayedAlarm: hasPlayedAlarm ?? this.hasPlayedAlarm,
     );
   }
 
@@ -82,8 +90,12 @@ class FocusLoaded extends FocusState {
         sessions,
         totalFocusMinutesToday,
         totalSessionsCount,
+        targetEndTime,
+        hasPlayedAlarm,
       ];
 }
+
+const Object _sentinel = Object();
 
 class FocusError extends FocusState {
   final String message;

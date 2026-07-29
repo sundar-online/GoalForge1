@@ -241,7 +241,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     int count = 0;
     for (var habit in habits) {
       final activeToday = habit.scheduleDays.contains(weekdayStr);
-      final completedToday = habit.completedDates.contains(todayStr) || habit.completed;
+      // Completion is determined solely by completedDates; habit.completed is a
+      // persisted boolean that stays true after midnight and must not be used.
+      final completedToday = habit.completedDates.contains(todayStr);
       if (activeToday && !completedToday) {
         count++;
       }
@@ -275,7 +277,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         count++;
       }
     }
-    return count > 0 ? (total / count) : 0.0;
+    return count > 0 ? (total / count).clamp(0.0, 100.0) : 100.0;
   }
 
   String _calculateWeeklyFocusDuration(List<FocusSession> sessions) {
