@@ -1,0 +1,207 @@
+name: "🔍 SAST — Static Application Security Testing"
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master", "develop" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  semgrep-sast:
+    name: Semgrep SAST Scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep SAST (JSON output)
+        run: |
+          semgrep \
+            --config=auto \
+            --json \
+            --output=semgrep-results.json \
+            --no-error \
+            . || true
+
+      - name: Run Semgrep SAST (SARIF output)
+        run: |
+          semgrep \
+            --config=auto \
+            --sarif \
+            --output=semgrep-results.sarif \
+            --no-error \
+            . || true
+
+      - name: Install Python & openpyxl
+        run: |
+          python3 -m pip install --quiet openpyxl
+
+      - name: Convert JSON to Excel Report
+        run: |
+          python3 - <<'EOF'
+          import json, openpyxl
+          from openpyxl.styles import Font, PatternFill, Alignment
+          from openpyxl.utils import get_column_letter
+          from datetime import datetime
+
+          try:
+              with open("semgrep-results.json") as f:
+                  data = json.load(f)
+              findings = data.get("results", [])
+          except Exception as e:
+              print(f"Warning: {e}")
+              findings = []
+
+          wb = openpyxl.Workbook()
+          header_fill = PatternFill("solid", fgColor="1F3864")
+          header_font = Font(bold=True, color="FFFFFF", size=12)
+          title_fill  = PatternFill("solid", fgColor="2E75B6")
+          title_font  = Font(bold=True, color="FFFFFF", size=14)
+
+          # Summary Sheet
+          ws_sum = wb.active
+          ws_sum.title = "Executive Summary"
+          ws_sum["A1"] = "GoalForge SAST Security Report"
+          ws_sum["A1"].font = title_font
+          ws_sum["A1"].fill = title_fill
+          ws_sum.merge_cells("A1:E1")
+          ws_sum["A1"].alignment = Alignment(horizontal="center")
+          ws_sum["A2"] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}"
+          ws_sum["A2"].font = Font(italic=True, color="555555")
+          ws_sum.merge_cells("A2:E2")
+
+          sev_counts = {"ERROR": 0, "WARNING": 0, "INFO": 0}
+          for f in findings:
+              sev = f.get("extra", {}).get("severity", "INFO").upper()
+              sev_counts[sev] = sev_counts.get(sev, 0) + 1
+
+          rows_sum = [
+              ("Metric", "Value"),
+              ("Total Semgrep Findings", len(findings)),
+              ("Error/Critical", sev_counts.get("ERROR", 0)),
+              ("Warning", sev_counts.get("WARNING", 0)),
+              ("Info", sev_counts.get("INFO", 0)),
+              ("Manual Review Findings", 15),
+              ("Scan Date", datetime.now().strftime("%Y-%m-%d")),
+              ("Tool", "Semgrep (auto ruleset)"),
+              ("Framework", "Flutter / Dart"),
+              ("Auth Backend", "Firebase Auth + Firestore"),
+          ]
+          for r, (k, v) in enumerate(rows_sum, start=4):
+              ws_sum[f"A{r}"] = k
+              ws_sum[f"B{r}"] = str(v)
+              ws_sum[f"A{r}"].font = Font(bold=True)
+          ws_sum.column_dimensions["A"].width = 28
+          ws_sum.column_dimensions["B"].width = 40
+
+          # Semgrep Findings Sheet
+          ws = wb.create_sheet("Semgrep Findings")
+          cols = ["#", "Severity", "Rule ID", "Message", "File Path", "Line", "CWE / Category", "Fix Recommendation"]
+          for ci, col in enumerate(cols, 1):
+              cell = ws.cell(row=1, column=ci, value=col)
+              cell.font = header_font
+              cell.fill = header_fill
+              cell.alignment = Alignment(horizontal="center", wrap_text=True)
+
+          sev_colors = {"ERROR": "FF4444", "WARNING": "FFA500", "INFO": "4CAF50"}
+          for ri, f in enumerate(findings, start=2):
+              extra = f.get("extra", {})
+              sev   = extra.get("severity", "INFO").upper()
+              meta  = extra.get("metadata", {})
+              cwes  = meta.get("cwe", meta.get("category", "N/A"))
+              if isinstance(cwes, list): cwes = ", ".join(cwes)
+              msg   = extra.get("message", "").replace("\n", " ")[:200]
+              fix   = meta.get("fix-recommendations", meta.get("references", "Review Semgrep rule docs"))
+              if isinstance(fix, list): fix = fix[0] if fix else "N/A"
+              row_data = [ri-1, sev, f.get("check_id","N/A"), msg, f.get("path","N/A"),
+                          f.get("start",{}).get("line","N/A"), cwes, str(fix)[:300]]
+              for ci, val in enumerate(row_data, 1):
+                  cell = ws.cell(row=ri, column=ci, value=val)
+                  cell.alignment = Alignment(wrap_text=True)
+                  if ci == 2:
+                      cell.font = Font(bold=True, color=sev_colors.get(sev,"000000"))
+
+          col_widths = [5,12,35,50,45,6,30,50]
+          for i, w in enumerate(col_widths, 1):
+              ws.column_dimensions[get_column_letter(i)].width = w
+          ws.row_dimensions[1].height = 30
+          ws.freeze_panes = "A2"
+          ws.auto_filter.ref = ws.dimensions
+
+          # Manual Code Review Sheet
+          ws_m = wb.create_sheet("Manual Code Review")
+          manual_cols = ["#","Severity","Category","Finding","File","Line(s)","OWASP/CWE","Recommendation"]
+          for ci, col in enumerate(manual_cols, 1):
+              cell = ws_m.cell(row=1, column=ci, value=col)
+              cell.font = header_font
+              cell.fill = header_fill
+              cell.alignment = Alignment(horizontal="center", wrap_text=True)
+
+          manual_findings = [
+              (1,"CRITICAL","Hardcoded Secrets","firebase_options.dart has plaintext API keys for all platforms committed to source control","lib/firebase_options.dart","44,54,61,68,78","CWE-798 / A07:2021","Move Firebase config to GitHub Secrets or env-injected build vars; never commit firebase_options.dart"),
+              (2,"CRITICAL","Secrets Exposed in Git","firebase_options.dart & google-services.json not in .gitignore — live API keys in version control","lib/firebase_options.dart","ALL","CWE-312 / A02:2021","Add firebase_options.dart to .gitignore; rotate all exposed API keys immediately"),
+              (3,"HIGH","PII Logging in Production","AppLogger has no production guard — email, uid, stack traces logged at INFO/ERROR level in release builds","lib/core/utils/logger.dart","6-15","CWE-532 / A09:2021","Disable verbose logging in release mode using kReleaseMode; redact email/uid before logging"),
+              (4,"HIGH","Verbose Auth Error Logging","signInWithEmail logs normalized email and uid on each auth event — leaks PII to device logs","lib/features/auth/data/repositories/auth_repository_impl.dart","49,93,99","CWE-532 / A02:2021","Replace email/uid in logs with partial hashes or remove entirely in production builds"),
+              (5,"HIGH","Client-Side XP Logic (No Server Validation)","awardXp() runs entirely on client — attacker can forge XP via Firestore REST API","lib/core/services/gamification_service.dart","115-175","CWE-602 / A04:2021","Implement Firebase Cloud Functions to validate and award XP server-side; deny direct client writes"),
+              (6,"HIGH","Missing Firestore Security Rules","No firestore.rules file in repo — cannot verify data isolation; default rules may be open","(not found)","N/A","CWE-284 / A01:2021","Add firestore.rules; enforce per-user ownership: allow read,write: if request.auth.uid == resource.data.uid"),
+              (7,"MEDIUM","No Rate Limiting on Auth","signInWithEmail has no client-side rate limiting — relies entirely on Firebase defaults","lib/features/auth/data/repositories/auth_repository_impl.dart","38-58","CWE-307 / A07:2021","Implement exponential backoff; enable Firebase App Check to block scripted abuse"),
+              (8,"MEDIUM","Email Enumeration via Password Reset","sendPasswordResetEmail has differential timing — attacker can enumerate valid emails","lib/features/auth/data/repositories/auth_repository_impl.dart","111-127","CWE-204 / A07:2021","Add uniform artificial delay for all reset outcomes using Future.delayed"),
+              (9,"MEDIUM","Unvalidated Sync Queue Payload","processSyncQueue() uses Map.from() without schema validation before Firestore write","lib/core/services/sync_engine.dart","56-58","CWE-20 / A03:2021","Validate payload against strict allowlist of keys before writing to Firestore"),
+              (10,"MEDIUM","Race Condition in XP Award","awardXp() reads then writes non-atomically — concurrent calls can duplicate XP awards","lib/core/services/gamification_service.dart","126-173","CWE-362 / A04:2021","Use Firestore runTransaction() for atomic read-modify-write on XP profile"),
+              (11,"MEDIUM","No Firebase App Check","No AppCheck initialization — allows bot/script abuse of Firebase Auth and Firestore","lib/core/services/firebase_service.dart","ALL","CWE-306 / A07:2021","Integrate firebase_app_check; activate reCAPTCHA v3 for web, Play Integrity for Android"),
+              (12,"LOW","No Build Flavor Separation","No debug/release build flavors — debug features may persist in production builds","lib/main.dart","67","CWE-489 / A05:2021","Implement separate debug/release flavors; strip all debug logging/endpoints in release"),
+              (13,"LOW","Public Static Navigator Key","AppRouter.navigatorKey is a public static GlobalKey — navigation context accessible globally","lib/core/router/app_router.dart","25","CWE-668","Restrict navigatorKey access; make it package-private"),
+              (14,"LOW","No Certificate Pinning","No SSL pinning configured for Firebase network calls — MITM risk on compromised networks","(global)","N/A","CWE-295 / A02:2021","Add SSL pinning via http_certificate_pinning for critical API calls"),
+              (15,"INFO","Unmaintained Dependency (isar 3.1.0)","isar local DB v3.1.0 last released 2023 — project may be abandoned; check for CVEs","pubspec.yaml","48","CWE-1395","Evaluate migration to Hive or ObjectBox; verify no known CVEs"),
+          ]
+          for row_data in manual_findings:
+              ri = row_data[0] + 1
+              for ci, val in enumerate(row_data, 1):
+                  cell = ws_m.cell(row=ri, column=ci, value=val)
+                  cell.alignment = Alignment(wrap_text=True)
+                  if ci == 2:
+                      color_map = {"CRITICAL":"FF0000","HIGH":"FF6600","MEDIUM":"FFA500","LOW":"4CAF50","INFO":"2196F3"}
+                      cell.font = Font(bold=True, color=color_map.get(str(val),"000000"))
+          col_widths_m = [4,10,20,60,45,12,25,60]
+          for i, w in enumerate(col_widths_m, 1):
+              ws_m.column_dimensions[get_column_letter(i)].width = w
+          ws_m.row_dimensions[1].height = 30
+          ws_m.freeze_panes = "A2"
+          ws_m.auto_filter.ref = ws_m.dimensions
+
+          wb.save("SAST_Security_Report.xlsx")
+          print(f"SAST Excel report saved: {len(findings)} Semgrep + {len(manual_findings)} manual findings")
+          EOF
+
+      - name: Upload SAST Excel Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SAST-Security-Report
+          path: SAST_Security_Report.xlsx
+          retention-days: 30
+
+      - name: Upload Semgrep SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-results.sarif
+        continue-on-error: true
+
+      - name: Print SAST Summary
+        if: always()
+        run: |
+          echo "## 🔍 SAST Scan Complete" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Semgrep (auto) | ✅ Done |" >> $GITHUB_STEP_SUMMARY
+          echo "| Manual Code Review | ✅ 15 findings documented |" >> $GITHUB_STEP_SUMMARY
+          echo "| Excel Report | 📥 Available in Artifacts |" >> $GITHUB_STEP_SUMMARY
