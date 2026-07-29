@@ -25,23 +25,28 @@ jobs:
           fetch-depth: 0   # Required for full Gitleaks history scan
 
       # ─── Trivy: filesystem vulnerability scan ──────────────────────────────
-      - name: Run Trivy Vulnerability Scanner (JSON)
-        uses: aquasecurity/trivy-action@0.29.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'json'
-          output: 'trivy-results.json'
-          exit-code: '0'
+      - name: Install Trivy CLI
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.52.0
+          trivy --version
 
-      - name: Run Trivy Vulnerability Scanner (SARIF)
-        uses: aquasecurity/trivy-action@0.29.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          exit-code: '0'
+      - name: Run Trivy (JSON)
+        run: |
+          trivy fs \
+            --format json \
+            --output trivy-results.json \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --exit-code 0 \
+            . 2>&1 || true
+
+      - name: Run Trivy (SARIF)
+        run: |
+          trivy fs \
+            --format sarif \
+            --output trivy-results.sarif \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --exit-code 0 \
+            . 2>&1 || true
 
       # ─── Gitleaks: secrets detection ────────────────────────────────────────
       - name: Install Gitleaks

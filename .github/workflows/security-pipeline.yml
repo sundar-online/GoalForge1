@@ -350,23 +350,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Trivy Vulnerability Scan (JSON)
-        uses: aquasecurity/trivy-action@0.29.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'json'
-          output: 'trivy.json'
-          exit-code: '0'
+      - name: Install Trivy CLI
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.52.0
+          trivy --version
 
-      - name: Trivy Vulnerability Scan (SARIF)
-        uses: aquasecurity/trivy-action@0.29.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          exit-code: '0'
+      - name: Trivy Scan (JSON)
+        run: trivy fs --format json --output trivy.json --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 . || true
+
+      - name: Trivy Scan (SARIF)
+        run: trivy fs --format sarif --output trivy-results.sarif --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 . || true
 
       - name: Install Gitleaks
         run: |
