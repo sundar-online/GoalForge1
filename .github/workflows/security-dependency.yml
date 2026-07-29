@@ -25,35 +25,29 @@ jobs:
           fetch-depth: 0   # Required for full Gitleaks history scan
 
       # ─── Trivy: filesystem vulnerability scan ──────────────────────────────
-      - name: Install Trivy
-        run: |
-          wget -qO- https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.52.0
+      - name: Run Trivy Vulnerability Scanner (JSON)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'json'
+          output: 'trivy-results.json'
+          exit-code: '0'
 
-      - name: Run Trivy (JSON)
-        run: |
-          trivy fs \
-            --format json \
-            --output trivy-results.json \
-            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-            --exit-code 0 \
-            . 2>&1 || true
-
-      - name: Run Trivy (SARIF)
-        run: |
-          trivy fs \
-            --format sarif \
-            --output trivy-results.sarif \
-            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-            --exit-code 0 \
-            . 2>&1 || true
+      - name: Run Trivy Vulnerability Scanner (SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          exit-code: '0'
 
       # ─── Gitleaks: secrets detection ────────────────────────────────────────
       - name: Install Gitleaks
         run: |
-          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.3/gitleaks_8.18.3_linux_x64.tar.gz
-          tar -xzf gitleaks_8.18.3_linux_x64.tar.gz gitleaks
-          chmod +x gitleaks
-          mv gitleaks /usr/local/bin/gitleaks
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.3/gitleaks_8.18.3_linux_x64.tar.gz | tar -xz -C /usr/local/bin gitleaks
+          chmod +x /usr/local/bin/gitleaks
 
       - name: Run Gitleaks
         run: |
