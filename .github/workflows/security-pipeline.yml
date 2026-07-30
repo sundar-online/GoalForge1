@@ -406,6 +406,19 @@ jobs:
           from openpyxl.styles import Font, PatternFill, Alignment
           from openpyxl.utils import get_column_letter
 
+          def to_str(val):
+              if val is None:
+                  return ""
+              if isinstance(val, dict):
+                  if "version" in val:
+                      return str(val["version"])
+                  if "name" in val:
+                      return str(val["name"])
+                  return json.dumps(val)
+              if isinstance(val, (list, tuple)):
+                  return ", ".join(to_str(x) for x in val)
+              return str(val)
+
           hf=PatternFill("solid",fgColor="1F3864"); ff=Font(bold=True,color="FFFFFF",size=11)
           sc={"CRITICAL":"FF0000","HIGH":"FF6600","MEDIUM":"FFA500","LOW":"4CAF50","UNKNOWN":"888888"}
           wb=openpyxl.Workbook()
@@ -437,7 +450,7 @@ jobs:
           ws_sum["A1"].font=Font(bold=True,color="FFFFFF",size=14)
           ws_sum["A1"].fill=PatternFill("solid",fgColor="1A7A3E")
           ws_sum.merge_cells("A1:D1"); ws_sum["A1"].alignment=Alignment(horizontal="center")
-          ws_sum["A2"]=f"Scan: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+          ws_sum["A2"]=f"Scan: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
           ws_sum.merge_cells("A2:D2")
           sev_c={"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"UNKNOWN":0}
           for v in vulns: sev_c[v.get("Severity","UNKNOWN")] = sev_c.get(v.get("Severity","UNKNOWN"),0)+1
@@ -457,9 +470,9 @@ jobs:
           else:
               for ri,v in enumerate(vulns,2):
                   sev=v.get("Severity","UNKNOWN")
-                  for ci,val in enumerate([ri-1,sev,v.get("VulnerabilityID",""),v.get("PkgName",""),
-                                           v.get("InstalledVersion",""),v.get("FixedVersion","N/A"),
-                                           v.get("Title","")[:80],v.get("Description","")[:150]],1):
+                  for ci,val in enumerate([ri-1,sev,to_str(v.get("VulnerabilityID","")),to_str(v.get("PkgName","")),
+                                           to_str(v.get("InstalledVersion","")),to_str(v.get("FixedVersion","N/A")),
+                                           to_str(v.get("Title",""))[:80],to_str(v.get("Description",""))[:150]],1):
                       ce=ws_t.cell(ri,ci,val); ce.alignment=Alignment(wrap_text=True)
                       if ci==2: ce.font=Font(bold=True,color=sc.get(sev,"000000"))
           for i,w in enumerate([5,11,18,18,16,16,38,55],1): ws_t.column_dimensions[get_column_letter(i)].width=w
@@ -470,10 +483,10 @@ jobs:
           for ci,col in enumerate(["#","Rule","Description","File","Line","Author","Secret (Redacted)"],1):
               c=ws_g.cell(1,ci,col); c.font=ff; c.fill=hf; c.alignment=Alignment(horizontal="center",wrap_text=True)
           for ri,f in enumerate(all_secrets,2):
-              s=str(f.get("Secret",""))
+              s=to_str(f.get("Secret",""))
               if len(s)>8: s=s[:6]+"...[REDACTED]"
-              for ci,val in enumerate([ri-1,f.get("RuleID",""),f.get("Description",""),f.get("File",""),
-                                       f.get("StartLine",""),f.get("Author","N/A"),s],1):
+              for ci,val in enumerate([ri-1,to_str(f.get("RuleID","")),to_str(f.get("Description","")),to_str(f.get("File","")),
+                                       to_str(f.get("StartLine","")),to_str(f.get("Author","N/A")),s],1):
                   ce=ws_g.cell(ri,ci,val); ce.alignment=Alignment(wrap_text=True)
                   if ci in[2,7]: ce.font=Font(bold=True,color="FF0000")
           for i,w in enumerate([5,24,32,42,8,18,28],1): ws_g.column_dimensions[get_column_letter(i)].width=w
@@ -501,10 +514,19 @@ jobs:
               ("flutter_svg","^2.0.10+1","2.x","Current","LOW","Sanitize user-supplied SVGs","Never render untrusted SVGs"),
           ]
           for ri,(pkg,cur,lat,stat,risk,notes,rec) in enumerate(pkgs,2):
-              for ci,val in enumerate([ri-1,pkg,cur,lat,stat,risk,notes,rec],1):
+              for ci,val in enumerate([ri-1,to_str(pkg),to_str(cur),to_str(lat),to_str(stat),to_str(risk),to_str(notes),to_str(rec)],1):
                   ce=ws_d.cell(ri,ci,val); ce.alignment=Alignment(wrap_text=True)
                   if ci==6: ce.font=Font(bold=True,color=sc.get(str(val),"000000"))
                   if ci==5 and val=="Unmaintained": ce.font=Font(bold=True,color="FF6600")
+          if pub_out:
+              ws_d.cell(len(pkgs)+3,1,"Additional outdated packages from flutter pub outdated:")
+              for j,p in enumerate(pub_out,len(pkgs)+4):
+                  ws_d.cell(j,1,j-len(pkgs)-3)
+                  ws_d.cell(j,2,to_str(p.get("package","")))
+                  ws_d.cell(j,3,to_str(p.get("current","")))
+                  ws_d.cell(j,4,to_str(p.get("upgradable","")))
+                  ws_d.cell(j,5,"Outdated")
+                  ws_d.cell(j,6,"MEDIUM")
           for i,w in enumerate([5,22,14,14,14,10,48,42],1): ws_d.column_dimensions[get_column_letter(i)].width=w
           ws_d.row_dimensions[1].height=28; ws_d.freeze_panes="A2"; ws_d.auto_filter.ref=ws_d.dimensions
 

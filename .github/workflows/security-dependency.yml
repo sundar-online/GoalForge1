@@ -102,6 +102,19 @@ jobs:
           from openpyxl.styles import Font, PatternFill, Alignment
           from openpyxl.utils import get_column_letter
 
+          def to_str(val):
+              if val is None:
+                  return ""
+              if isinstance(val, dict):
+                  if "version" in val:
+                      return str(val["version"])
+                  if "name" in val:
+                      return str(val["name"])
+                  return json.dumps(val)
+              if isinstance(val, (list, tuple)):
+                  return ", ".join(to_str(x) for x in val)
+              return str(val)
+
           header_fill = PatternFill("solid", fgColor="1F3864")
           header_font = Font(bold=True, color="FFFFFF", size=12)
           title_fill  = PatternFill("solid", fgColor="1A7A3E")
@@ -118,7 +131,7 @@ jobs:
           ws_sum["A1"].fill = title_fill
           ws_sum.merge_cells("A1:E1")
           ws_sum["A1"].alignment = Alignment(horizontal="center")
-          ws_sum["A2"] = f"Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+          ws_sum["A2"] = f"Generated: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
           ws_sum.merge_cells("A2:E2")
 
           # Load Trivy results
@@ -180,7 +193,7 @@ jobs:
               ("Gitleaks Secret Findings", len(gitleaks_findings)),
               ("Outdated Dart/Flutter Packages", len(pub_outdated)),
               ("Known Vulnerable Packages (Manual)", len(known_vuln_pkgs)),
-              ("Scan Date", datetime.datetime.utcnow().strftime("%Y-%m-%d")),
+              ("Scan Date", datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")),
               ("Tools", "Trivy v0.52, Gitleaks v8.18, flutter pub outdated"),
           ]
           for r, (k, v) in enumerate(summary_rows, start=4):
@@ -205,9 +218,9 @@ jobs:
           else:
               for ri, v in enumerate(trivy_vulns, start=2):
                   sev = v.get("Severity","UNKNOWN")
-                  row_data = [ri-1, sev, v.get("VulnerabilityID","N/A"), v.get("PkgName","N/A"),
-                              v.get("InstalledVersion","N/A"), v.get("FixedVersion","not-fixed"),
-                              v.get("Title","")[:100], v.get("Description","")[:200], v.get("_target","")]
+                  row_data = [ri-1, sev, to_str(v.get("VulnerabilityID","N/A")), to_str(v.get("PkgName","N/A")),
+                              to_str(v.get("InstalledVersion","N/A")), to_str(v.get("FixedVersion","not-fixed")),
+                              to_str(v.get("Title",""))[:100], to_str(v.get("Description",""))[:200], to_str(v.get("_target",""))]
                   for ci, val in enumerate(row_data, 1):
                       cell = ws_t.cell(row=ri, column=ci, value=val)
                       cell.alignment = Alignment(wrap_text=True)
@@ -229,15 +242,16 @@ jobs:
               cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
           # Always add our known hardcoded finding from firebase_options.dart
+          now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
           known_secrets = [
               {"RuleID":"hardcoded-firebase-api-key","Description":"Firebase API Key committed to source","File":"lib/firebase_options.dart",
-               "StartLine":"44","Commit":"HEAD","Author":"Developer","Date":datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+               "StartLine":"44","Commit":"HEAD","Author":"Developer","Date":now_str,
                "Secret":"AIzaSyCLVEz...[REDACTED]"},
               {"RuleID":"hardcoded-firebase-api-key","Description":"Firebase Android API Key committed to source","File":"lib/firebase_options.dart",
-               "StartLine":"54","Commit":"HEAD","Author":"Developer","Date":datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+               "StartLine":"54","Commit":"HEAD","Author":"Developer","Date":now_str,
                "Secret":"AIzaSyANKP...[REDACTED]"},
               {"RuleID":"hardcoded-firebase-api-key","Description":"Firebase iOS API Key committed to source","File":"lib/firebase_options.dart",
-               "StartLine":"61","Commit":"HEAD","Author":"Developer","Date":datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+               "StartLine":"61","Commit":"HEAD","Author":"Developer","Date":now_str,
                "Secret":"AIzaSyBhoO...[REDACTED]"},
           ]
           all_secrets = gitleaks_findings + known_secrets
@@ -246,12 +260,12 @@ jobs:
               ws_g.merge_cells("A2:I2")
           else:
               for ri, f in enumerate(all_secrets, start=2):
-                  secret_val = str(f.get("Secret","N/A"))
+                  secret_val = to_str(f.get("Secret","N/A"))
                   if len(secret_val) > 8:
                       secret_val = secret_val[:6] + "...[REDACTED]"
-                  row_data = [ri-1, f.get("RuleID","N/A"), f.get("Description","N/A"), f.get("File","N/A"),
-                              f.get("StartLine","N/A"), f.get("Commit","N/A")[:10] if f.get("Commit") else "N/A",
-                              f.get("Author","N/A"), f.get("Date","N/A"), secret_val]
+                  row_data = [ri-1, to_str(f.get("RuleID","N/A")), to_str(f.get("Description","N/A")), to_str(f.get("File","N/A")),
+                              to_str(f.get("StartLine","N/A")), to_str(f.get("Commit","N/A"))[:10] if f.get("Commit") else "N/A",
+                              to_str(f.get("Author","N/A")), to_str(f.get("Date","N/A")), secret_val]
                   for ci, val in enumerate(row_data, 1):
                       cell = ws_g.cell(row=ri, column=ci, value=val)
                       cell.alignment = Alignment(wrap_text=True)
@@ -293,7 +307,7 @@ jobs:
           for ri, (pkg,cur,latest,status,risk,notes,rec) in enumerate(dart_packages, start=2):
               row_data = [ri-1,pkg,cur,latest,status,risk,notes,rec]
               for ci, val in enumerate(row_data, 1):
-                  cell = ws_d.cell(row=ri, column=ci, value=val)
+                  cell = ws_d.cell(row=ri, column=ci, value=to_str(val))
                   cell.alignment = Alignment(wrap_text=True)
                   if ci == 6:
                       cell.font = Font(bold=True, color=sev_colors.get(str(val),"000000"))
@@ -306,9 +320,9 @@ jobs:
               ws_d[f"A{ri+2}"].font = Font(bold=True)
               for j, pkg in enumerate(pub_outdated, start=ri+3):
                   ws_d.cell(row=j, column=1, value=j-ri-2)
-                  ws_d.cell(row=j, column=2, value=pkg.get("package",""))
-                  ws_d.cell(row=j, column=3, value=pkg.get("current",""))
-                  ws_d.cell(row=j, column=4, value=pkg.get("upgradable",""))
+                  ws_d.cell(row=j, column=2, value=to_str(pkg.get("package","")))
+                  ws_d.cell(row=j, column=3, value=to_str(pkg.get("current","")))
+                  ws_d.cell(row=j, column=4, value=to_str(pkg.get("upgradable","")))
                   ws_d.cell(row=j, column=5, value="Outdated")
                   ws_d.cell(row=j, column=6, value="MEDIUM")
 
