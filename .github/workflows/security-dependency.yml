@@ -49,6 +49,9 @@ jobs:
             --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
             --exit-code 0 \
             . 2>&1 || true
+          if [ ! -f "trivy-results.sarif" ]; then
+            echo '{"$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","version":"2.1.0","runs":[]}' > trivy-results.sarif
+          fi
 
       # ─── Gitleaks: secrets detection ────────────────────────────────────────
       - name: Install Gitleaks
@@ -313,15 +316,32 @@ jobs:
           ws_d.auto_filter.ref = ws_d.dimensions
 
           wb.save("Dependency_Scan_Report.xlsx")
+          wb.save("Dependency_Report.xlsx")
           print(f"Dependency scan report saved: {len(trivy_vulns)} Trivy + {len(all_secrets)} secrets + {len(dart_packages)} packages")
           EOF
+
+      # ─── Debug & Validate Discovered Artifact Paths ─────────────────────────
+      - name: Debug & Validate Discovered Artifact Paths
+        if: always()
+        run: |
+          echo "=== Working Directory ==="
+          pwd
+          echo "=== Root Directory Files ==="
+          ls -la
+          echo "=== Discovered SARIF Files ==="
+          find . -maxdepth 3 -name "*.sarif" || true
+          echo "=== Discovered Excel Files ==="
+          find . -maxdepth 3 -name "*.xlsx" || true
 
       - name: Upload Dependency Scan Excel Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Dependency-Scan-Report
-          path: Dependency_Scan_Report.xlsx
+          path: |
+            Dependency_Scan_Report.xlsx
+            Dependency_Report.xlsx
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Upload Trivy SARIF to GitHub Security

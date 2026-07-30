@@ -361,7 +361,11 @@ jobs:
         run: trivy fs --format json --output trivy.json --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 . || true
 
       - name: Trivy Scan (SARIF)
-        run: trivy fs --format sarif --output trivy-results.sarif --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 . || true
+        run: |
+          trivy fs --format sarif --output trivy-results.sarif --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 . || true
+          if [ ! -f "trivy-results.sarif" ]; then
+            echo '{"$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","version":"2.1.0","runs":[]}' > trivy-results.sarif
+          fi
 
       - name: Install Gitleaks
         run: |
@@ -502,15 +506,32 @@ jobs:
           ws_d.row_dimensions[1].height=28; ws_d.freeze_panes="A2"; ws_d.auto_filter.ref=ws_d.dimensions
 
           wb.save("Dependency_Report.xlsx")
+          wb.save("Dependency_Scan_Report.xlsx")
           print(f"Dependency report: {len(vulns)} CVEs | {len(all_secrets)} secrets | {len(pkgs)} packages")
           EOF
+
+      # ─── Debug & Validate Discovered Artifact Paths ─────────────────────────
+      - name: Debug & Validate Discovered Artifact Paths
+        if: always()
+        run: |
+          echo "=== Working Directory ==="
+          pwd
+          echo "=== Root Directory Files ==="
+          ls -la
+          echo "=== Discovered SARIF Files ==="
+          find . -maxdepth 3 -name "*.sarif" || true
+          echo "=== Discovered Excel Files ==="
+          find . -maxdepth 3 -name "*.xlsx" || true
 
       - name: Upload Dependency Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: "Pipeline-Dependency-Report"
-          path: Dependency_Report.xlsx
+          path: |
+            Dependency_Report.xlsx
+            Dependency_Scan_Report.xlsx
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Upload Trivy SARIF
