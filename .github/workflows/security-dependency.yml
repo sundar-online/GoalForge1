@@ -27,9 +27,7 @@ jobs:
       # ─── Trivy: filesystem vulnerability scan ──────────────────────────────
       - name: Install Trivy CLI
         run: |
-          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.52.0/trivy_0.52.0_Linux-64bit.tar.gz | tar -xz trivy
-          sudo install -m 0755 trivy /usr/local/bin/trivy
-          rm -f trivy
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
           trivy --version
 
       - name: Run Trivy (JSON)
@@ -56,9 +54,14 @@ jobs:
       # ─── Gitleaks: secrets detection ────────────────────────────────────────
       - name: Install Gitleaks
         run: |
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.3/gitleaks_8.18.3_linux_x64.tar.gz | tar -xz gitleaks
+          curl -sSL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.18.3/gitleaks_8.18.3_linux_x64.tar.gz
+          if ! file gitleaks.tar.gz | grep -qE 'gzip compressed data|gzip'; then
+            echo "ERROR: Downloaded gitleaks archive is not a valid gzip file"
+            exit 1
+          fi
+          tar -xzf gitleaks.tar.gz gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
-          rm -f gitleaks
+          rm -f gitleaks gitleaks.tar.gz
 
       - name: Run Gitleaks
         run: |
