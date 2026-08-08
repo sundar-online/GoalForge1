@@ -5,7 +5,8 @@
   "main": "tests/login-tests.js",
   "scripts": {
     "test": "node tests/login-tests.js",
-    "generate-report": "node generate-excel-report.js"
+    "generate-report": "node generate-excel-report.js",
+    "generate-master-report": "node generate-master-excel-report.js"
   },
   "keywords": [
     "selenium",

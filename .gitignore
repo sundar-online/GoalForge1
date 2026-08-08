@@ -52,5 +52,15 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Selenium modules
+# Node / JavaScript sub-projects (functions/, selenium-tests/, etc.)
+node_modules/
+**/node_modules/
+npm-debug.log*
+
+# Firebase local debug logs
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+
+# Selenium test modules (legacy entry — superseded by node_modules/ above)
 ./selenium_modules/
