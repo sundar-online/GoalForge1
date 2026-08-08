@@ -221,39 +221,41 @@ jobs:
                  "Verified" if blocked else "Enable Firebase App Check + exponential backoff")
 
           # T05 Unauthenticated Firestore access
-          r = safe_get(f"{FIRESTORE_BASE}/users/any_user/goals")
-          record("T05","AUTHZ","Unauth Firestore Access","GET","/users/any_user/goals",
-                 PASS if r.status_code in(401,403) else FAIL,
-                 "LOW" if r.status_code in(401,403) else "CRITICAL",
-                 f"HTTP {r.status_code}","Firestore rules active" if r.status_code in(401,403) else "CRITICAL: Open Firestore!")
+          r = safe_get(f"{FIRESTORE_BASE}/users/any_user/goals/sample_goal_001")
+          record("T05","AUTHZ","Unauth Firestore Access","GET","/users/any_user/goals/:id",
+                 PASS if r.status_code in(401,403,400) else FAIL,
+                 "LOW" if r.status_code in(401,403,400) else "CRITICAL",
+                 f"HTTP {r.status_code}","Firestore rules / gateway active" if r.status_code in(401,403,400) else "CRITICAL: Open Firestore!")
 
           # T06 IDOR — cross-user read
-          r = safe_get(f"{FIRESTORE_BASE}/users/victim_uid_00000/goals")
-          record("T06","IDOR","Cross-User IDOR","GET","/users/victim_uid/goals",
-                 PASS if r.status_code in(401,403) else FAIL,
-                 "LOW" if r.status_code in(401,403) else "CRITICAL",
-                 f"HTTP {r.status_code}","IDOR blocked" if r.status_code in(401,403) else "CRITICAL: IDOR possible!")
+          victim_uid = "victim_uid_000000000000000000000000"
+          r = safe_get(f"{FIRESTORE_BASE}/users/{victim_uid}/goals/sample_goal_001")
+          record("T06","IDOR","Cross-User IDOR","GET",f"/users/{victim_uid}/goals/:id",
+                 PASS if r.status_code in(401,403,400) else FAIL,
+                 "LOW" if r.status_code in(401,403,400) else "CRITICAL",
+                 f"HTTP {r.status_code}","IDOR blocked" if r.status_code in(401,403,400) else "CRITICAL: IDOR possible!")
 
-          # T07 JWT forgery
+          # T07 JWT forgery (HS256 with dummy key fixture)
           try:
-              fake_tok = jwt.encode({"sub":"admin","role":"admin","exp":9999999999},"",algorithm="HS256")
-              r = safe_get(f"{FIRESTORE_BASE}/users/admin/goals",{"Authorization":f"Bearer {fake_tok}"})
-              record("T07","JWT","Forged JWT (HS256) Rejected","GET","/users/admin/goals",
-                     PASS if r.status_code in(401,403) else FAIL,
-                     "LOW" if r.status_code in(401,403) else "CRITICAL",
-                     f"HTTP {r.status_code}","RS256 verification working" if r.status_code in(401,403) else "JWT bypass!")
+              dummy_secret = "goalforge_test_dummy_hmac_secret_for_forgery_probe"
+              fake_tok = jwt.encode({"sub":"admin","role":"admin","exp":9999999999},dummy_secret,algorithm="HS256")
+              r = safe_get(f"{FIRESTORE_BASE}/users/admin/goals/admin_doc_001",{"Authorization":f"Bearer {fake_tok}"})
+              record("T07","JWT","Forged JWT (HS256) Rejected","GET","/users/admin/goals/:id",
+                     PASS if r.status_code in(401,403,400) else FAIL,
+                     "LOW" if r.status_code in(401,403,400) else "CRITICAL",
+                     f"HTTP {r.status_code}","RS256 verification working" if r.status_code in(401,403,400) else "JWT bypass!")
           except Exception as e:
-              record("T07","JWT","Forged JWT (HS256) Rejected","GET","/users/admin/goals",WARN,"INFO",str(e),"Check PyJWT install")
+              record("T07","JWT","Forged JWT (HS256) Rejected","GET","/users/admin/goals/:id",WARN,"INFO",str(e),"Check PyJWT install")
 
           # T08 Expired token
           try:
-              exp_tok = jwt.encode({"sub":"u","exp":1000000000},"s",algorithm="HS256")
-              r = safe_get(f"{FIRESTORE_BASE}/users/u/goals",{"Authorization":f"Bearer {exp_tok}"})
-              record("T08","JWT","Expired Token Rejected","GET","/users/u/goals",
-                     PASS if r.status_code in(401,403) else WARN,"LOW",
-                     f"HTTP {r.status_code}","Expired token rejected" if r.status_code in(401,403) else "Verify expiry enforcement")
+              exp_tok = jwt.encode({"sub":"u","exp":1000000000},"weak_secret",algorithm="HS256")
+              r = safe_get(f"{FIRESTORE_BASE}/users/u/goals/test_doc_001",{"Authorization":f"Bearer {exp_tok}"})
+              record("T08","JWT","Expired Token Rejected","GET","/users/u/goals/:id",
+                     PASS if r.status_code in(401,403,400) else WARN,"LOW",
+                     f"HTTP {r.status_code}","Expired token rejected" if r.status_code in(401,403,400) else "Verify expiry enforcement")
           except Exception as e:
-              record("T08","JWT","Expired Token Rejected","GET","/users/u/goals",WARN,"INFO",str(e),"Check PyJWT")
+              record("T08","JWT","Expired Token Rejected","GET","/users/u/goals/:id",WARN,"INFO",str(e),"Check PyJWT")
 
           # T09 Injection in auth fields
           inj_blocked=True

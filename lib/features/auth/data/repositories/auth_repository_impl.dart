@@ -21,11 +21,9 @@ class AuthRepositoryImpl implements AuthRepository {
   final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
 
-  // SAST-07: Rate limiter state — tracks failures per session.
+  // SAST-07: Rate limiter state — tracks failed attempts for exponential backoff.
   int _signInFailureCount = 0;
   DateTime? _lastFailureTime;
-  static const int _maxImmediateAttempts = 3;
-  static const Duration _backoffBase = Duration(milliseconds: 500);
 
   AuthRepositoryImpl({
     FirebaseAuth? firebaseAuth,
@@ -51,14 +49,16 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-  /// Applies exponential backoff delay based on recent failure count (SAST-07).
+  /// Applies exponential backoff delay based on failed attempts: 1s, 2s, 4s, 8s, 16s... capped at 30s.
   Future<void> _applyBackoff() async {
-    if (_signInFailureCount < _maxImmediateAttempts) return;
-    final exponent = min(_signInFailureCount - _maxImmediateAttempts, 6);
-    final delayMs = _backoffBase.inMilliseconds * (1 << exponent);
-    final jitter = Random().nextInt(200);
-    AppLogger.d('AuthRateLimit: applying backoff delay of ${delayMs + jitter}ms');
-    await Future.delayed(Duration(milliseconds: delayMs + jitter));
+    if (_signInFailureCount <= 0) return;
+    final exponent = min(_signInFailureCount - 1, 5);
+    final calculatedMs = 1000 * (1 << exponent);
+    final cappedMs = min(calculatedMs, 30000);
+    final jitter = Random().nextInt(150);
+    final totalDelay = cappedMs + jitter;
+    AppLogger.d('AuthRateLimit: failed attempts: $_signInFailureCount, applying backoff delay of ${totalDelay}ms');
+    await Future.delayed(Duration(milliseconds: totalDelay));
   }
 
   @override
