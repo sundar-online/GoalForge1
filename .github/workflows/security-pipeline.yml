@@ -22,7 +22,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python & Install Semgrep + openpyxl
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Semgrep & openpyxl
         run: |
           python -m pip install --upgrade pip
           pip install semgrep openpyxl
@@ -348,6 +353,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
       - name: Install & Run Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin 2>/dev/null || true
@@ -378,16 +393,6 @@ jobs:
           if [ ! -f "pub-outdated.json" ]; then
             echo '{"packages":[]}' > pub-outdated.json
           fi
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install openpyxl
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl
 
       - name: Build Dependency Excel
         run: |
