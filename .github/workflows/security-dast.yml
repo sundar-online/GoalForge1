@@ -36,9 +36,10 @@ jobs:
           from openpyxl.styles import Font, PatternFill, Alignment
           from openpyxl.utils import get_column_letter
 
-          # ─── Firebase Project Config (public config, for auth tests only) ──────
-          FIREBASE_PROJECT_ID = "goalforge-fcae0"
-          FIREBASE_API_KEY    = "AIzaSyCLVEzvox1MIavOpSiONdM9MSzZ5EH_auI"
+          # ─── Firebase Project Config — injected from GitHub Actions secrets ──────
+          # Configure these in: Settings → Secrets and variables → Actions
+          FIREBASE_PROJECT_ID = "${{ secrets.FIREBASE_PROJECT_ID }}"
+          FIREBASE_API_KEY    = "${{ secrets.FIREBASE_API_KEY }}"
           AUTH_EMULATOR       = os.environ.get("FIREBASE_AUTH_EMULATOR_HOST", "")
 
           if AUTH_EMULATOR:

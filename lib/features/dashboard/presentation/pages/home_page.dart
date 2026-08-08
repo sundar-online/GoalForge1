@@ -548,7 +548,7 @@ class _HomePageState extends State<HomePage> {
   // 3. LEVEL & XP CARD (Dark Navy Card)
   // ─────────────────────────────────────────────────────────────
   Widget _buildLevelXpCard(BuildContext context, AppThemeTokens tokens, XPProfile xpProfile) {
-    const gamificationService = GamificationService();
+    final gamificationService = GamificationService();
     final levelProgress = gamificationService.calculateLevelProgress(xpProfile.totalXP);
     final level = levelProgress.currentLevel;
     final xp = xpProfile.totalXP;

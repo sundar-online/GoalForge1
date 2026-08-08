@@ -1,3 +1,5 @@
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_constants.dart';
 import '../domain/models/badge_model.dart';
 import '../domain/models/story_moment.dart';
@@ -26,10 +28,13 @@ class LevelProgress {
 
 class GamificationService {
   final GamificationRepository? _gamificationRepository;
+  final FirebaseFunctions _functions;
 
-  const GamificationService({
+  GamificationService({
     GamificationRepository? gamificationRepository,
-  }) : _gamificationRepository = gamificationRepository;
+    FirebaseFunctions? functions,
+  })  : _gamificationRepository = gamificationRepository,
+        _functions = functions ?? FirebaseFunctions.instance;
 
   /// Calculates current level for a given total XP based on AppConstants.levelXpMap
   int calculateLevel(int totalXP) {
@@ -112,7 +117,18 @@ class GamificationService {
     return unlocked;
   }
 
-  /// Awards XP, records activity transactions, updates level and evaluates badges.
+  /// Awards XP via the server-side `awardXp` Cloud Function.
+  ///
+  /// Security model (SAST-05):
+  ///   - The Cloud Function verifies the caller's Firebase Auth UID and validates
+  ///     the amount server-side — direct Firestore writes to the XP document are
+  ///     no longer permitted from the client.
+  ///   - The Function uses runTransaction() internally, eliminating the race
+  ///     condition that existed in the previous client-side implementation.
+  ///
+  /// The local profile returned here is an **optimistic** projection built from
+  /// the cached profile + [amount].  The authoritative values are committed by
+  /// the Function; the repository's real-time listener will reconcile any drift.
   Future<XPProfile> awardXp(
     int amount, {
     String title = 'Activity Completed',
@@ -127,7 +143,8 @@ class GamificationService {
     final currentProfile = _gamificationRepository?.getXPProfile() ??
         const XPProfile(earnedBadges: [], xpHistory: {}, updatedAt: '');
 
-    final updatedProfile = _buildUpdatedProfile(
+    // Build optimistic profile for immediate UI feedback.
+    final optimisticProfile = _buildUpdatedProfile(
       currentProfile,
       amount,
       title: title,
@@ -140,10 +157,29 @@ class GamificationService {
       completedGoalsCount: completedGoalsCount,
     );
 
-    if (_gamificationRepository != null) {
-      await _gamificationRepository!.updateXPProfile(updatedProfile);
+    // Delegate the authoritative write to the server-side Cloud Function.
+    // The Function performs atomic read-modify-write via runTransaction().
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        throw StateError('awardXp: cannot award XP — user is not authenticated.');
+      }
+      final callable = _functions.httpsCallable('awardXp');
+      await callable.call<Map<String, dynamic>>({
+        'uid': uid,
+        'amount': amount,
+        'reason': title,
+      });
+    } on FirebaseFunctionsException catch (e) {
+      AppLogger.e('awardXp Cloud Function error: [${e.code}]');
+      // Surface the error so callers can handle it; do not silently swallow.
+      rethrow;
+    } catch (e) {
+      AppLogger.e('awardXp: unexpected error calling Cloud Function');
+      rethrow;
     }
-    return updatedProfile;
+
+    return optimisticProfile;
   }
 
   /// Pure function: builds an updated [XPProfile] from [current] + [amount].

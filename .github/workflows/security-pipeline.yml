@@ -160,8 +160,10 @@ jobs:
           from openpyxl.styles import Font, PatternFill, Alignment
           from openpyxl.utils import get_column_letter
 
-          FIREBASE_API_KEY = "AIzaSyCLVEzvox1MIavOpSiONdM9MSzZ5EH_auI"
-          FIREBASE_PROJECT_ID = "goalforge-fcae0"
+          # Firebase credentials — injected from GitHub Actions secrets.
+          # Configure in: Settings → Secrets and variables → Actions
+          FIREBASE_API_KEY = "${{ secrets.FIREBASE_API_KEY }}"
+          FIREBASE_PROJECT_ID = "${{ secrets.FIREBASE_PROJECT_ID }}"
           BASE_URL = "https://identitytoolkit.googleapis.com/v1"
           FIRESTORE_BASE = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents"
           PASS="PASS"; FAIL="FAIL"; WARN="WARN"
