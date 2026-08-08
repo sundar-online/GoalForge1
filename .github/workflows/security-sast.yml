@@ -15,12 +15,15 @@ jobs:
   semgrep-sast:
     name: Semgrep SAST Scan
     runs-on: ubuntu-latest
-    container:
-      image: semgrep/semgrep
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
+
+      - name: Set up Python & Install Semgrep + openpyxl
+        run: |
+          python -m pip install --upgrade pip
+          pip install semgrep openpyxl
 
       - name: Run Semgrep SAST (JSON output)
         run: |
@@ -39,13 +42,6 @@ jobs:
             --output=semgrep-results.sarif \
             --no-error \
             . || true
-
-      - name: Set up Python environment & install openpyxl
-        run: |
-          python3 -m venv /opt/venv
-          /opt/venv/bin/pip install --upgrade pip --quiet
-          /opt/venv/bin/pip install openpyxl --quiet
-          echo "/opt/venv/bin" >> $GITHUB_PATH
 
       - name: Convert JSON to Excel Report
         run: |
