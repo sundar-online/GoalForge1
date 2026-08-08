@@ -336,7 +336,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Trivy SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@df409f7d9260372bd5f19e5b04e83ce3c4fb4d4c # v3.28.33
+        uses: github/codeql-action/upload-sarif@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
         if: always()
         with:
           sarif_file: trivy-results.sarif
