@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Run Semgrep SAST (JSON output)
         run: |
@@ -185,7 +185,7 @@ jobs:
           EOF
 
       - name: Upload SAST Excel Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: always()
         with:
           name: SAST-Security-Report
@@ -193,7 +193,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Semgrep SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@df409f7d9260372bd5f19e5b04e83ce3c4fb4d4c # v3.28.33
         if: always()
         with:
           sarif_file: semgrep-results.sarif

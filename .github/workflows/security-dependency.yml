@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0   # Required for full Gitleaks history scan
 
@@ -74,7 +74,7 @@ jobs:
 
       # ─── Dart pub outdated: dependency audit ───────────────────────────────
       - name: Install Flutter SDK
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@44ac965b96f18d999802d4b807e3256d5a3f9fa1 # v2.16.0
         with:
           channel: "stable"
 
@@ -86,7 +86,7 @@ jobs:
 
       # ─── Generate Combined Excel Report ────────────────────────────────────
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: "3.12"
 
@@ -351,7 +351,7 @@ jobs:
           find . -maxdepth 3 -name "*.xlsx" || true
 
       - name: Upload Dependency Scan Excel Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: always()
         with:
           name: Dependency-Scan-Report
@@ -362,7 +362,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Trivy SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@df409f7d9260372bd5f19e5b04e83ce3c4fb4d4c # v3.28.33
         if: always()
         with:
           sarif_file: trivy-results.sarif

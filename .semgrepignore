@@ -1,0 +1,20 @@
+# Semgrep Ignore Rules for GoalForge
+
+# Local development credentials (gitignored and injected via CI secrets)
+lib/firebase_options.dart
+lib/firebase_options.dart.example
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+
+# Dependency and build directories
+node_modules/
+**/node_modules/
+.dart_tool/
+build/
+.pub-cache/
+.pub/
+
+# Binary & Test artifact files
+*.xlsx
+*.jar
